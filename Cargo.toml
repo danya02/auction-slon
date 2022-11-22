@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "backend",
+    "frontend",
+
+    #Internal
+    "common"
+]
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 1
