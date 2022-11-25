@@ -9,7 +9,13 @@ pub struct WebsocketService {
 
 impl WebsocketService {
     pub fn new() -> Self {
-        let ws = WebSocket::open("ws://127.0.0.1:3030/connect").unwrap();
+        let path = if cfg!(debug_assertions) {
+            "ws://127.0.0.1:3030/connect"
+        } else {
+            "..." // TODO: server path on release
+        };
+
+        let ws = WebSocket::open(path).unwrap();
 
         let (mut ws_tx, mut ws_rx) = ws.split();
 

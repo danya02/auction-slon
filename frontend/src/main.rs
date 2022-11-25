@@ -1,4 +1,4 @@
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
-    frontend::run();
+    yew::start_app::<frontend::AuctionApp>();
 }
