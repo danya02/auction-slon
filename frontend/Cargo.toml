@@ -7,13 +7,14 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../common" }
+
 yew = "0.19.3"
 yew-router = "0.16.0"
 futures = "0.3.25"
-reqwasm = "0.5.0"
 wasm-bindgen-futures = "0.4.28"
 log = "0.4.17"
 web-sys = "0.3.60"
 # pretty_env_logger = "0.4.0"
 wasm-logger = "0.2.0"
 gloo-dialogs = "0.1.1"
+gloo-net = "0.2.4"

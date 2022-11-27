@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::Route;
 use gloo_dialogs::alert;
-use reqwasm::http::*;
+use gloo_net::http::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -22,29 +24,48 @@ fn seller_login() -> Html {
 
 #[function_component(BuyerLoginOption)]
 fn buyer_login() -> Html {
-    let code = use_state(|| String::new());
+    let passcode = use_state(|| String::new());
     let oninput = {
-        let curr_code = code.clone();
+        let passcode = passcode.clone();
         Callback::from(move |e: InputEvent| {
             let input: HtmlInputElement = e.target_unchecked_into();
-            curr_code.set(input.value());
+            passcode.set(input.value());
         })
     };
 
     let onclick = {
+        let passcode = passcode.clone();
         Callback::from(move |_| {
+            let passcode = (*passcode).clone();
             spawn_local(async move {
-                if let Ok(resp) = Request::get("http://localhost:3030/nonce").send().await {
-                    log::debug!("{:?}", resp.body());
+                // Todo: get rid of all the unwraps
+                let nonce =
+                    if let Ok(resp) = Request::get("http://localhost:3030/nonce").send().await {
+                        resp.text().await.unwrap()
+                    } else {
+                        panic!("\"nonce\" request failed");
+                    };
+                log::debug!("Received a nonce: {:?}", nonce);
+
+                let hmac = common::crypto::hmac(&format!("{:?}", nonce), &passcode);
+
+                let body = common::shared::BuyerLoginData { hmac, passcode };
+                log::info!("{:?}", body);
+
+                if let Ok(resp) = Request::post("http://localhost:3030/login/buyer")
+                    .header("Content-Type", "application/json")
+                    .body(body)
+                    .send()
+                    .await
+                {
+                    if resp.status_text() == "OK" {
+                        let history = use_history().unwrap();
+                        history.clone().push(Route::Buyer)
+                    } else {
+                        alert("Failed to log in! Please check your pass code")
+                    }
                 }
             });
-            if false {
-                let history = use_history().unwrap();
-                log::info!("{:?}", code);
-                history.clone().push(Route::Buyer)
-            } else {
-                alert("Not so fast!")
-            }
         })
     };
 
