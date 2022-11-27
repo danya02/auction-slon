@@ -1,7 +1,14 @@
-use std::convert::Infallible;
+use std::{
+    convert::Infallible,
+    sync::{Arc, Mutex},
+};
 
 use rand::prelude::*;
 use warp::{http::StatusCode, Filter, Rejection, Reply};
+
+struct SharedData {
+    nonce: u32,
+}
 
 pub async fn run(ip: [u8; 4], port: u16) {
     // let ws_filter = warp::path("connect")
@@ -15,12 +22,15 @@ pub async fn run(ip: [u8; 4], port: u16) {
     //     .map(|name: String| format!("Hello, {}", name));
     //
     // let routes = hello_name.or(ws_filter).or(hello_world);
+    let shared: Arc<Mutex<_>> = Arc::new(Mutex::new(SharedData { nonce: 0 }));
+    let shared_clone = Arc::clone(&shared);
 
-    let nonce = warp::path("nonce").map(|| {
-        let nonce = thread_rng().gen::<u32>();
-        log::info!("sent nonce: {}", nonce);
+    let nonce = warp::path("nonce").map(move || {
+        let mut shared = shared_clone.lock().unwrap();
+        shared.nonce = thread_rng().gen::<u32>();
+        log::info!("sent nonce: {}", shared.nonce);
         warp::reply::with_header(
-            format!("{}", nonce),
+            format!("{}", shared.nonce),
             "Access-Control-Allow-Origin",
             "http://127.0.0.1:8080",
         )
@@ -34,7 +44,16 @@ pub async fn run(ip: [u8; 4], port: u16) {
                 warp::reply::with_status("OK", StatusCode::OK)
             });
 
-    let routes = nonce.or(login_buyer).recover(handle_rejection);
+    let shared_clone = Arc::clone(&shared);
+    let check_nonce = warp::path("check").map(move || {
+        let shared = shared_clone.lock().unwrap();
+        format!("{}", shared.nonce)
+    });
+
+    let routes = nonce
+        .or(login_buyer)
+        .or(check_nonce)
+        .recover(handle_rejection);
     warp::serve(routes).run((ip, port)).await;
 }
 
