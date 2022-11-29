@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use crate::Route;
-use gloo_dialogs::alert;
 use gloo_net::http::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -22,59 +19,85 @@ fn seller_login() -> Html {
     }
 }
 
-#[function_component(BuyerLoginOption)]
-fn buyer_login() -> Html {
-    let passcode = use_state(|| String::new());
-    let oninput = {
-        let passcode = passcode.clone();
-        Callback::from(move |e: InputEvent| {
-            let input: HtmlInputElement = e.target_unchecked_into();
-            passcode.set(input.value());
-        })
-    };
+enum LoginMsg {
+    BeginLogin,
+    IsLoginSuccessful(bool),
+    ReceivedNonce(Vec<u8>),
+}
 
-    let onclick = {
-        let passcode = passcode.clone();
-        Callback::from(move |_| {
-            let passcode = (*passcode).clone();
-            spawn_local(async move {
-                // Todo: get rid of all the unwraps
-                let nonce =
-                    if let Ok(resp) = Request::get("http://localhost:3030/nonce").send().await {
-                        resp.text().await.unwrap()
+struct BuyerLoginOption {
+    passcode_input_field: NodeRef,
+}
+
+impl Component for BuyerLoginOption {
+    type Message = LoginMsg;
+
+    type Properties = ();
+
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self {
+            passcode_input_field: NodeRef::default(),
+        }
+    }
+
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            LoginMsg::BeginLogin => {
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    if let Ok(resp) = Request::get("/api/nonce").send().await {
+                        if let Ok(nonce) = resp.binary().await {
+                            log::debug!("Received a nonce: {:?}", nonce);
+                            link.send_message(LoginMsg::ReceivedNonce(nonce));
+                        }
                     } else {
-                        panic!("\"nonce\" request failed");
-                    };
-                log::debug!("Received a nonce: {:?}", nonce);
-
-                let hmac = common::crypto::hmac(&format!("{:?}", nonce), &passcode);
-
-                let body = common::shared::BuyerLoginData { hmac, passcode };
-                log::info!("{:?}", body);
-
-                if let Ok(resp) = Request::post("http://localhost:3030/login/buyer")
-                    .header("Content-Type", "application/json")
-                    .body(body)
-                    .send()
-                    .await
-                {
-                    if resp.status_text() == "OK" {
-                        let history = use_history().unwrap();
-                        history.clone().push(Route::Buyer)
-                    } else {
-                        alert("Failed to log in! Please check your pass code")
+                        log::error!("Nonce request failed");
+                        link.send_message(LoginMsg::IsLoginSuccessful(false));
                     }
+                });
+            }
+            LoginMsg::IsLoginSuccessful(is_login_successful) => {
+                if is_login_successful {
+                    let history = ctx.link().history().unwrap();
+                    history.push(Route::Buyer);
                 }
-            });
-        })
-    };
+            }
+            LoginMsg::ReceivedNonce(nonce) => {
+                log::info!("Login nonce: {:x?}", nonce);
+                let link = ctx.link().clone();
+                if let Some(passcode_input_el) =
+                    self.passcode_input_field.cast::<HtmlInputElement>()
+                {
+                    let passcode = passcode_input_el.value();
+                    let hmac = common::crypto::hmac(&nonce, &passcode);
 
-    html! {
-        <div>
-            <label for="buyer-code">{ "Enter the provided code" }</label>
-            <input {oninput} type="text" name="buyer-code" />
-            <button {onclick}>{ "As a buyer" }</button>
-        </div>
+                    let body = common::shared::BuyerLoginData { hmac, passcode };
+                    log::info!("{:?}", body);
+                    spawn_local(async move {
+                        if let Ok(resp) = Request::post("/api/login/buyer")
+                            .header("Content-Type", "application/json")
+                            .body(body)
+                            .credentials(RequestCredentials::Include)
+                            .send()
+                            .await
+                        {
+                            link.send_message(LoginMsg::IsLoginSuccessful(resp.ok()));
+                        }
+                    });
+                }
+            }
+        }
+        false
+    }
+
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        html! {
+            <div>
+                <label for="buyer-code">{ "Enter the provided code" }</label>
+                <input ref={self.passcode_input_field.clone()} type="text" name="buyer-code" />
+                <button onclick={ctx.link().callback(|_| LoginMsg::BeginLogin)}>{ "As a buyer" }</button>
+            </div>
+        }
     }
 }
 

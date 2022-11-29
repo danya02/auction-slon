@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 
+use crate::crypto;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuyerLoginData {
-    pub hmac: Vec<u8>,
+    pub hmac: crypto::HmacOutput,
     pub passcode: String,
 }
 
 impl Default for BuyerLoginData {
     fn default() -> Self {
         Self {
-            hmac: vec![],
+            hmac: [0; 32],
             passcode: "".to_string(),
         }
     }
