@@ -1,10 +1,13 @@
 use std::{
     convert::Infallible,
+    env,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
 use crate::business::data::*;
 use rand::prelude::*;
+use tokio::{fs::File, io::AsyncReadExt};
 use warp::{
     http::{header, Response, StatusCode},
     Rejection, Reply,
@@ -74,4 +77,66 @@ pub async fn handle_ws(ws_connection: warp::ws::WebSocket) {
             })
         }
     });
+}
+
+async fn get_file_as_byte_vec(filename: &PathBuf) -> Option<Vec<u8>> {
+    let mut f = File::open(&filename).await.ok()?;
+    let mut buffer = vec![];
+    f.read_to_end(&mut buffer).await.ok()?;
+
+    Some(buffer)
+}
+
+async fn retreive_index() -> Vec<u8> {
+    let mut filename = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    filename.push("static/index.html");
+    log::debug!("Looking for index.html at: {:?}", filename);
+    get_file_as_byte_vec(&filename)
+        .await
+        .expect("Should have an index.html in static")
+}
+pub async fn handle_index() -> Response<Vec<u8>> {
+    let content = retreive_index().await;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html")
+        .body(content)
+        .unwrap()
+}
+
+pub async fn handle_file(path: String) -> Response<Vec<u8>> {
+    let mut filename = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    filename.push("static");
+    filename.push(&path);
+    log::debug!("Looking for file at: {:?}", filename);
+
+    let maybe_content = get_file_as_byte_vec(&filename).await;
+
+    let ext = path.split(".").last().unwrap_or("bin");
+
+    let mime = match ext {
+        "html" | "htm" => "text/html",
+        "js" => "text/javascript",
+        "wasm" => "application/wasm",
+        // Add other mimetypes as needed
+        _ => "application/octet-stream",
+    };
+
+    log::debug!(
+        "Looking for file at: {:?}; its mimetype is {}",
+        filename,
+        mime
+    );
+
+    if let Some(content) = maybe_content {
+        return Response::builder()
+            .header(header::CONTENT_TYPE, mime)
+            .body(content)
+            .unwrap();
+    } else {
+        let content = retreive_index().await;
+        return Response::builder()
+            .header(header::CONTENT_TYPE, "text/html")
+            .body(content)
+            .unwrap();
+    };
 }

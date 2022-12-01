@@ -39,7 +39,19 @@ pub async fn run(ip: [u8; 4], port: u16) {
         .and(with_state(state.clone()))
         .then(handle_login);
 
-    let routes = nonce.or(options).or(login).or(ws).recover(handle_rejection);
+    let api_paths = ws.or(nonce).or(login);
+
+    let api = warp::path("api").and(api_paths);
+
+    let file_path = warp::path::param().and(warp::get()).then(handle_file);
+
+    let index = warp::get().then(handle_index);
+
+    let routes = options
+        .or(api)
+        .or(file_path)
+        .or(index)
+        .recover(handle_rejection);
     warp::serve(routes).run((ip, port)).await;
 }
 

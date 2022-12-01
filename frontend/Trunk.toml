@@ -1,3 +1,7 @@
+[build]
+filehash = false
+dist = "../backend/static"
+
 [[proxy]]
 rewrite = "/api"
-backend = "http://localhost:3030"
+backend = "http://localhost:3030/api"
