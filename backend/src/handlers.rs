@@ -31,7 +31,7 @@ pub async fn handle_nonce(state: Arc<Mutex<ServerState>>) -> Response<Vec<u8>> {
 
 pub async fn handle_login(
     header: String,
-    data: common::shared::BuyerLoginData,
+    data: common::data::LoginData,
     state: Arc<Mutex<ServerState>>,
     db: Arc<Mutex<Database>>,
 ) -> Response<warp::hyper::Body> {
@@ -40,40 +40,48 @@ pub async fn handle_login(
     log::info!("Login with data: {:?}", data);
 
     if let Some(mut cookie) = SessionCookie::deserialize_as_cookie(&header, &state) {
-        let expected_passcode_hmac = common::crypto::hmac(&cookie.nonce, &data.passcode);
-        if compare_digest(&expected_passcode_hmac, &data.hmac) {
-            let mut query = db
-                .conn
-                .prepare(&format!(
-                    "SELECT id, name, role FROM Users WHERE passcode = \"{}\"",
-                    data.passcode
-                ))
-                .unwrap();
+        // let expected_passcode_hmac = common::crypto::hmac(&cookie.nonce, &data.passcode);
+        let mut query = db
+            .conn
+            .prepare("SELECT id, name, passcode, role FROM Users")
+            .unwrap();
 
-            let matching_users = query
-                .query_map([], |row| {
-                    let id: u32 = row.get(0).unwrap();
-                    let name: String = row.get(1).unwrap();
-                    let role: UserRole = row.get(2).unwrap();
-                    Ok((id, name, role))
+        let matching_users = query
+            .query_map([], |row| {
+                Ok(User {
+                    id: row.get(0).unwrap(),
+                    name: row.get(1).unwrap(),
+                    passcode: row.get(2).unwrap(),
+                    role: row.get(3).unwrap(),
                 })
-                .unwrap()
-                .collect::<Vec<_>>();
+            })
+            .unwrap()
+            .filter(|user| {
+                if let Ok(user) = user {
+                    let expected_passcode_hmac =
+                        common::crypto::hmac(&cookie.nonce, &user.passcode);
+                    return compare_digest(&expected_passcode_hmac, &data.passcode_hmac);
+                }
+                false
+            })
+            .collect::<Vec<_>>();
 
-            if matching_users.len() == 1 {
-                // Todo:
-                // 1. forward to correct page depending on user role, ether by returning type
-                // itself or by returning a file
+        if matching_users.len() == 1 {
+            // Todo:
+            // 1. forward to correct page depending on user role, ether by returning type
+            // itself or by returning a file
 
-                let (id, name, _role) = matching_users[0].as_ref().unwrap();
-                cookie.user_id = Some(*id);
+            let user = matching_users[0].as_ref().unwrap();
+            cookie.user_id = Some(user.id);
 
-                return Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::SET_COOKIE, cookie.serialize_as_set_cookie(&state))
-                    .body(warp::hyper::body::Body::from(format!("Hello, {}!", name)))
-                    .unwrap();
-            }
+            return Response::builder()
+                .status(StatusCode::OK)
+                .header(header::SET_COOKIE, cookie.serialize_as_set_cookie(&state))
+                .body(warp::hyper::body::Body::from(format!(
+                    "Hello, {}!",
+                    user.name
+                )))
+                .unwrap();
         }
     }
 

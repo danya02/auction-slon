@@ -57,7 +57,9 @@ impl Component for Login {
                     let passcode = passcode_input_el.value();
                     let hmac = common::crypto::hmac(&nonce, &passcode);
 
-                    let body = common::shared::BuyerLoginData { hmac, passcode };
+                    let body = common::data::LoginData {
+                        passcode_hmac: hmac,
+                    };
                     log::info!("{:?}", body);
                     spawn_local(async move {
                         if let Ok(resp) = Request::post("/api/login")
