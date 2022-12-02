@@ -3,16 +3,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use warp::{
-    http::{header, Response},
-    Filter,
-};
+use warp::Filter;
 
-mod business;
-use business::*;
+mod data;
+mod database;
+mod handlers;
+
+use data::*;
+use database::Database;
+use handlers::*;
 
 pub async fn run(ip: [u8; 4], port: u16) {
     let state = Arc::new(Mutex::new(ServerState::new()));
+    let db = Arc::new(Mutex::new(Database::init()));
 
     let ws = warp::path("ws")
         .and(warp::ws())
@@ -23,20 +26,12 @@ pub async fn run(ip: [u8; 4], port: u16) {
         .and(with_state(state.clone()))
         .then(handle_nonce);
 
-    let options = warp::any().and(warp::options()).map(|| {
-        Response::builder()
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "http://127.0.0.1:8080")
-            .header(header::ACCESS_CONTROL_ALLOW_HEADERS, "Content-Type")
-            .header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true")
-            .body(warp::hyper::body::Body::empty())
-            .unwrap()
-    });
-
     let login = warp::path("login")
         .and(warp::post())
         .and(warp::header::header("Cookie"))
         .and(warp::body::json())
         .and(with_state(state.clone()))
+        .and(with_db(db.clone()))
         .then(handle_login);
 
     let api_paths = ws.or(nonce).or(login);
@@ -47,11 +42,7 @@ pub async fn run(ip: [u8; 4], port: u16) {
 
     let index = warp::get().then(handle_index);
 
-    let routes = options
-        .or(api)
-        .or(file_path)
-        .or(index)
-        .recover(handle_rejection);
+    let routes = api.or(file_path).or(index).recover(handle_rejection);
     warp::serve(routes).run((ip, port)).await;
 }
 
@@ -59,4 +50,10 @@ fn with_state(
     state: Arc<Mutex<ServerState>>,
 ) -> impl Filter<Extract = (Arc<Mutex<ServerState>>,), Error = Infallible> + Clone {
     warp::any().map(move || Arc::clone(&state))
+}
+
+fn with_db(
+    db: Arc<Mutex<Database>>,
+) -> impl Filter<Extract = (Arc<Mutex<Database>>,), Error = Infallible> + Clone {
+    warp::any().map(move || Arc::clone(&db))
 }

@@ -19,12 +19,14 @@ impl ServerState {
 #[derive(Serialize, Deserialize)]
 pub struct SessionCookie {
     pub nonce: [u8; 32],
+    pub user_id: Option<u32>,
 }
 
 impl SessionCookie {
     pub fn new() -> Self {
         Self {
             nonce: Default::default(),
+            user_id: None,
         }
     }
 
@@ -80,4 +82,41 @@ impl SessionCookie {
         }
         None
     }
+}
+
+#[derive(Debug)]
+pub enum UserRole {
+    Buyer,
+    Seller,
+}
+
+impl rusqlite::ToSql for UserRole {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        let str = match self {
+            UserRole::Buyer => "Buyer",
+            UserRole::Seller => "Seller",
+        };
+        use rusqlite::types::ToSqlOutput;
+        Ok(ToSqlOutput::from(str))
+    }
+}
+
+impl rusqlite::types::FromSql for UserRole {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        use rusqlite::types::FromSqlError;
+        let val = value.as_str()?;
+        match val {
+            "Buyer" => Ok(Self::Buyer),
+            "Seller" => Ok(Self::Seller),
+            _ => Err(FromSqlError::InvalidType),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    pub passcode: String,
+    pub role: UserRole,
 }

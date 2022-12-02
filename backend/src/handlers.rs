@@ -5,7 +5,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::business::data::*;
+use crate::{data::*, database::Database};
+use common::crypto::compare_digest;
 use rand::prelude::*;
 use tokio::{fs::File, io::AsyncReadExt};
 use warp::{
@@ -23,8 +24,6 @@ pub async fn handle_nonce(state: Arc<Mutex<ServerState>>) -> Response<Vec<u8>> {
     cookie.nonce = nonce;
 
     Response::builder()
-        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "http://127.0.0.1:8080")
-        .header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true")
         .header(header::SET_COOKIE, cookie.serialize_as_set_cookie(&state))
         .body(nonce.to_vec())
         .unwrap()
@@ -34,24 +33,51 @@ pub async fn handle_login(
     header: String,
     data: common::shared::BuyerLoginData,
     state: Arc<Mutex<ServerState>>,
+    db: Arc<Mutex<Database>>,
 ) -> Response<warp::hyper::Body> {
     let state = state.lock().unwrap();
-    log::info!("buyer is trying to log in");
-    log::debug!("{:?}", data);
+    let db = db.lock().unwrap();
+    log::info!("Login with data: {:?}", data);
 
-    if let Some(cookie) = SessionCookie::deserialize_as_cookie(&header, &state) {
-        let _expected_nonce_hmac = common::crypto::hmac(&cookie.nonce, &data.passcode);
-        return Response::builder()
-            .header("Access-Control-Allow-Origin", "http://127.0.0.1:8080")
-            .header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true")
-            .status(StatusCode::OK)
-            .body(warp::hyper::body::Body::empty())
-            .unwrap();
+    if let Some(mut cookie) = SessionCookie::deserialize_as_cookie(&header, &state) {
+        let expected_passcode_hmac = common::crypto::hmac(&cookie.nonce, &data.passcode);
+        if compare_digest(&expected_passcode_hmac, &data.hmac) {
+            let mut query = db
+                .conn
+                .prepare(&format!(
+                    "SELECT id, name, role FROM Users WHERE passcode = \"{}\"",
+                    data.passcode
+                ))
+                .unwrap();
+
+            let matching_users = query
+                .query_map([], |row| {
+                    let id: u32 = row.get(0).unwrap();
+                    let name: String = row.get(1).unwrap();
+                    let role: UserRole = row.get(2).unwrap();
+                    Ok((id, name, role))
+                })
+                .unwrap()
+                .collect::<Vec<_>>();
+
+            if matching_users.len() == 1 {
+                // Todo:
+                // 1. forward to correct page depending on user role, ether by returning type
+                // itself or by returning a file
+
+                let (id, name, _role) = matching_users[0].as_ref().unwrap();
+                cookie.user_id = Some(*id);
+
+                return Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::SET_COOKIE, cookie.serialize_as_set_cookie(&state))
+                    .body(warp::hyper::body::Body::from(format!("Hello, {}!", name)))
+                    .unwrap();
+            }
+        }
     }
 
     Response::builder()
-        .header("Access-Control-Allow-Origin", "http://127.0.0.1:8080")
-        .header(header::ACCESS_CONTROL_ALLOW_CREDENTIALS, "true")
         .status(StatusCode::UNAUTHORIZED)
         .body(warp::hyper::body::Body::empty())
         .unwrap()
@@ -120,12 +146,6 @@ pub async fn handle_file(path: String) -> Response<Vec<u8>> {
         // Add other mimetypes as needed
         _ => "application/octet-stream",
     };
-
-    log::debug!(
-        "Looking for file at: {:?}; its mimetype is {}",
-        filename,
-        mime
-    );
 
     if let Some(content) = maybe_content {
         return Response::builder()

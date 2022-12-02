@@ -5,31 +5,17 @@ use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-#[function_component(SellerLoginOption)]
-fn seller_login() -> Html {
-    let onclick = {
-        let history = use_history().unwrap();
-        Callback::from(move |_| history.clone().push(Route::Seller))
-    };
-
-    html! {
-        <div>
-            <button {onclick}>{ "As a seller" }</button>
-        </div>
-    }
-}
-
 enum LoginMsg {
     BeginLogin,
     IsLoginSuccessful(bool),
     ReceivedNonce(Vec<u8>),
 }
 
-struct BuyerLoginOption {
+struct Login {
     passcode_input_field: NodeRef,
 }
 
-impl Component for BuyerLoginOption {
+impl Component for Login {
     type Message = LoginMsg;
 
     type Properties = ();
@@ -74,7 +60,7 @@ impl Component for BuyerLoginOption {
                     let body = common::shared::BuyerLoginData { hmac, passcode };
                     log::info!("{:?}", body);
                     spawn_local(async move {
-                        if let Ok(resp) = Request::post("/api/login/buyer")
+                        if let Ok(resp) = Request::post("/api/login")
                             .header("Content-Type", "application/json")
                             .body(body)
                             .credentials(RequestCredentials::Include)
@@ -93,9 +79,9 @@ impl Component for BuyerLoginOption {
     fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div>
-                <label for="buyer-code">{ "Enter the provided code" }</label>
-                <input ref={self.passcode_input_field.clone()} type="text" name="buyer-code" />
-                <button onclick={ctx.link().callback(|_| LoginMsg::BeginLogin)}>{ "As a buyer" }</button>
+                <label for="code-field">{ "Enter the provided code" }</label>
+                <input ref={self.passcode_input_field.clone()} type="text" name="code-field" />
+                <button onclick={ctx.link().callback(|_| LoginMsg::BeginLogin)}>{ "Login" }</button>
             </div>
         }
     }
@@ -105,8 +91,7 @@ impl Component for BuyerLoginOption {
 pub fn login() -> Html {
     html! {
         <div>
-            <BuyerLoginOption />
-            <SellerLoginOption />
+            <Login />
         </div>
     }
 }
