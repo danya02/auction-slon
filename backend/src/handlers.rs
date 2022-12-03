@@ -5,8 +5,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{data::*, database::Database};
+use crate::{
+    data::{internal::ServerState, models::*, web::*},
+    database::Database,
+};
 use common::crypto::compare_digest;
+use diesel::prelude::*;
 use rand::prelude::*;
 use tokio::{fs::File, io::AsyncReadExt};
 use warp::{
@@ -36,33 +40,20 @@ pub async fn handle_login(
     db: Arc<Mutex<Database>>,
 ) -> Response<warp::hyper::Body> {
     let state = state.lock().unwrap();
-    let db = db.lock().unwrap();
+    let mut db = db.lock().unwrap();
     log::info!("Login with data: {:?}", data);
 
     if let Some(mut cookie) = SessionCookie::deserialize_as_cookie(&header, &state) {
-        // let expected_passcode_hmac = common::crypto::hmac(&cookie.nonce, &data.passcode);
-        let mut query = db
-            .conn
-            .prepare("SELECT id, name, passcode, role FROM Users")
-            .unwrap();
+        use crate::data::schema::users::dsl::*;
+        let all_users = users
+            .load::<User>(&mut db.conn)
+            .expect("Could not load table \"Users\"");
 
-        let matching_users = query
-            .query_map([], |row| {
-                Ok(User {
-                    id: row.get(0).unwrap(),
-                    name: row.get(1).unwrap(),
-                    passcode: row.get(2).unwrap(),
-                    role: row.get(3).unwrap(),
-                })
-            })
-            .unwrap()
+        let matching_users = all_users
+            .into_iter()
             .filter(|user| {
-                if let Ok(user) = user {
-                    let expected_passcode_hmac =
-                        common::crypto::hmac(&cookie.nonce, &user.passcode);
-                    return compare_digest(&expected_passcode_hmac, &data.passcode_hmac);
-                }
-                false
+                let expected_passcode_hmac = common::crypto::hmac(&cookie.nonce, &user.passcode);
+                compare_digest(&expected_passcode_hmac, &data.passcode_hmac)
             })
             .collect::<Vec<_>>();
 
@@ -71,8 +62,8 @@ pub async fn handle_login(
             // 1. forward to correct page depending on user role, ether by returning type
             // itself or by returning a file
 
-            let user = matching_users[0].as_ref().unwrap();
-            cookie.user_id = Some(user.id);
+            let user = &matching_users[0];
+            cookie.user_id = user.id;
 
             return Response::builder()
                 .status(StatusCode::OK)

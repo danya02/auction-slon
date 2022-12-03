@@ -9,7 +9,7 @@ mod data;
 mod database;
 mod handlers;
 
-use data::*;
+use data::internal::ServerState;
 use database::Database;
 use handlers::*;
 
