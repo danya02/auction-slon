@@ -28,11 +28,15 @@ pub async fn run(ip: [u8; 4], port: u16) {
 
     let login = warp::path("login")
         .and(warp::post())
-        .and(warp::header::header("Cookie"))
+        .and(warp::cookie("session"))
         .and(warp::body::json())
         .and(with_state(state.clone()))
         .and(with_db(db.clone()))
         .then(handle_login);
+
+    // let auth = warp::path("auth")
+    //     .and(warp::cookie("session"))
+    //     .and(warp::tra)
 
     let api_paths = ws.or(nonce).or(login);
 

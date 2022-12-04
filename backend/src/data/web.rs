@@ -27,9 +27,8 @@ impl SessionCookie {
     }
 
     pub fn serialize_as_set_cookie(&self, state: &ServerState) -> String {
-        let mut out = "session=\"".to_string();
+        let mut out = "session=".to_string();
         out.push_str(&self.serialize_with_hmac(state));
-        out.push_str("\"");
         out
     }
 
@@ -53,19 +52,5 @@ impl SessionCookie {
         let cookie = serde_json::from_slice(&json_bytes).ok()?;
 
         Some(cookie)
-    }
-
-    pub fn deserialize_as_cookie(data: &str, state: &ServerState) -> Option<Self> {
-        for cookie in data.split(";") {
-            log::debug!("Found cookie: {:?}", &cookie);
-            let cookie = cookie.trim().to_string();
-            if cookie.starts_with("session=") {
-                let cookie = cookie.strip_prefix("session=")?.to_string();
-                let cookie = cookie.replace("\"", "");
-                log::debug!("This is the session cookie: {:?}", cookie);
-                return Self::deserialize_with_hmac(&cookie, state);
-            }
-        }
-        None
     }
 }

@@ -34,7 +34,7 @@ pub async fn handle_nonce(state: Arc<Mutex<ServerState>>) -> Response<Vec<u8>> {
 }
 
 pub async fn handle_login(
-    header: String,
+    session_cookie: String,
     data: common::data::LoginData,
     state: Arc<Mutex<ServerState>>,
     db: Arc<Mutex<Database>>,
@@ -42,8 +42,9 @@ pub async fn handle_login(
     let state = state.lock().unwrap();
     let mut db = db.lock().unwrap();
     log::info!("Login with data: {:?}", data);
+    log::debug!("cookie {}", session_cookie);
 
-    if let Some(mut cookie) = SessionCookie::deserialize_as_cookie(&header, &state) {
+    if let Some(mut cookie) = SessionCookie::deserialize_with_hmac(&session_cookie, &state) {
         use crate::data::schema::users::dsl::*;
         let all_users = users
             .load::<User>(&mut db.conn)
