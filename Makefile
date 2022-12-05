@@ -1,3 +1,4 @@
+# Todo: change makefile for two environments
 basedir = "."
 
 all: build run

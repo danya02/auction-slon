@@ -3,11 +3,27 @@ name = "backend"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "production"
+path = "src/bin/production/production.rs"
+
+# This bin is used for manual end-to-end testing
+[[bin]]
+name = "testing"
+path = "src/bin/testing/testing.rs"
+required-features = ["testing"]
+
+[features]
+testing = ["diesel_migrations"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 common = { path = "../common", features = ["diesel_sqlite"] }
-
 log = "0.4.14"
 tokio = { version = "1.22.0", features = ["full"] }
 warp = "0.3.3"
@@ -19,5 +35,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.13.1"
 diesel = { version = "2.0.2", features = ["sqlite"] }
+diesel_migrations = {version = "2.0", optional = true }
 dotenvy = "0.15.6"
 enum_primitive = "0.1.1"
