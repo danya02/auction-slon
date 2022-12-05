@@ -18,4 +18,4 @@ enum_primitive = "0.1.1"
 diesel = { version = "2.0.2", optional = true }
 
 [features]
-sqlite = ["diesel"]
+diesel_sqlite = ["diesel/sqlite"]
