@@ -8,17 +8,17 @@ name = "backend"
 path = "src/lib.rs"
 
 [[bin]]
-name = "production"
-path = "src/bin/production/production.rs"
+name = "prod"
+path = "src/bin/prod/prod.rs"
 
 # This bin is used for manual end-to-end testing
 [[bin]]
-name = "testing"
-path = "src/bin/testing/testing.rs"
-required-features = ["testing"]
+name = "dev"
+path = "src/bin/dev/dev.rs"
+required-features = ["dev"]
 
 [features]
-testing = ["diesel_migrations"]
+dev = ["diesel_migrations"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

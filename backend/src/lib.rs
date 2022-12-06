@@ -13,6 +13,9 @@ use data::internal::ServerState;
 use database::Database;
 use handlers::*;
 
+pub use data::models;
+pub use data::schema;
+
 pub async fn run(ip: [u8; 4], port: u16) {
     let state = Arc::new(Mutex::new(ServerState::new()));
     let db = Arc::new(Mutex::new(Database::init()));
