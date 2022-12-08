@@ -23,6 +23,7 @@ dev = ["diesel_migrations"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tls-proxy = { path - "../tls-proxy" }
 common = { path = "../common", features = ["diesel_sqlite"] }
 log = "0.4.14"
 tokio = { version = "1.22.0", features = ["full"] }

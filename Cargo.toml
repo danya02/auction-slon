@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "backend",
+    "tls-proxy",
+
     "frontend",
 
     #Internal
