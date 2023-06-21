@@ -1,31 +1,13 @@
-basedir = "."
+all: build-front-admin build-front-user build-backend run-backend
 
-all: dev
+build-front-admin:
+	trunk build frontend/admin/index.html --filehash false
 
-# Prod
-prod: build-prod run-prod
+build-front-user:
+	trunk build frontend/user/index.html --filehash false
 
-build-prod: front-prod back-prod
+build-backend:
+	cargo build --bin backend
 
-front-prod:
-	cd $(basedir)/frontend; trunk build --release
-
-back-prod:
-	cd $(basedir)/backend/src/bin/prod; diesel migration run; cd ../../../; cargo build --bin prod --release
-
-run-prod:
-	cd $(basedir)/backend; cargo run --bin prod 
-
-# Dev
-dev: build-dev run-dev
-
-build-dev: front-dev back-dev
-
-front-dev:
-	cd $(basedir)/frontend; trunk build
-
-back-dev:
-	cargo run --bin dev --features="dev"
-
-run-dev:
-	cd $(basedir)/backend; cargo run --bin dev --features="dev"
+run-backend:
+	RUST_LOG=debug cargo run --bin backend

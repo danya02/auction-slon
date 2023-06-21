@@ -1,3 +1,0 @@
-[submodule "tls-proxy"]
-	path = tls-proxy
-	url = https://github.com/gmatiukhin/tls-proxy

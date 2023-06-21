@@ -1,13 +1,12 @@
 [workspace]
-resolver = "2"
 members = [
     "backend",
-    "tls-proxy",
 
-    "frontend",
+    "frontend/user",
+    "frontend/admin",
+    "frontend/common",
 
-    #Internal
-    "common"
+    "communication"
 ]
 
 # Optimize all dependencies even in debug builds:
