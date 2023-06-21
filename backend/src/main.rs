@@ -15,6 +15,7 @@ async fn main() {
 
     // build our application with a single route
     let app = Router::new().route("/websocket", get(handle_websocket_connection))
+    .route("/admin/websocket", get(handle_websocket_connection))
     .nest_service("/admin", ServeDir::new("frontend/admin/dist").append_index_html_on_directories(true))
     .nest_service("/", ServeDir::new("frontend/user/dist").append_index_html_on_directories(true));
 

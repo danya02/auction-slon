@@ -9,3 +9,4 @@ edition = "2021"
 yew = { version = "0.20.0", features = ["csr"] }
 common = { path = "../common" }
 communication = { path = "../../communication" }
+yew-hooks = "0.2.0"
