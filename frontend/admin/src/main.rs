@@ -8,7 +8,7 @@ fn app() -> Html {
     let loc = &use_location();
     let path = format!(
         "ws{}://{}/websocket",
-        if loc.protocol=="https" {"s"} else {""},
+        if loc.protocol == "https" { "s" } else { "" },
         loc.host,
     );
 
@@ -36,7 +36,6 @@ fn app() -> Html {
             ws.message,
         );
     }
-
 
     html! {
         <>
