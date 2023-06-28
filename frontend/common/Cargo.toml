@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 yew = "0.20.0"
+communication = { path = "../../communication" }
+yew-hooks = "0.2.0"

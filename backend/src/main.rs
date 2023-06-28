@@ -1,9 +1,12 @@
+#![feature(async_closure)]
+
 use std::borrow::Cow;
 
+use auction::AuctionSyncHandle;
 use axum::{
     extract::{
-        ws::{close_code, CloseFrame, Message, WebSocket, CloseCode},
-        WebSocketUpgrade,
+        ws::{close_code, CloseCode, CloseFrame, Message, WebSocket},
+        State, WebSocketUpgrade,
     },
     response::Response,
     routing::get,
@@ -16,6 +19,7 @@ use tower_http::services::ServeDir;
 use tracing::{debug, error, info, trace, warn};
 
 mod admin;
+mod auction;
 mod user;
 
 #[tokio::main]
@@ -24,7 +28,8 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    // build our application with a single route
+    let sync_handle = AuctionSyncHandle::new().await;
+
     let app = Router::new()
         .route("/websocket", get(handle_websocket_connection))
         .route("/admin/websocket", get(handle_websocket_connection))
@@ -35,7 +40,8 @@ async fn main() {
         .nest_service(
             "/",
             ServeDir::new("frontend/user/dist").append_index_html_on_directories(true),
-        );
+        )
+        .with_state(sync_handle);
 
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -44,8 +50,12 @@ async fn main() {
         .unwrap();
 }
 
-async fn handle_websocket_connection(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(handle_socket)
+async fn handle_websocket_connection(
+    State(sync_handle): State<AuctionSyncHandle>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    let handle = sync_handle.clone();
+    ws.on_upgrade(async move |s| handle_socket(s, handle).await)
 }
 
 pub async fn close_socket(mut socket: WebSocket, code: CloseCode, reason: &str) {
@@ -60,9 +70,9 @@ pub async fn close_socket(mut socket: WebSocket, code: CloseCode, reason: &str) 
         // We do not care whether this message is received, as we're closing the connection.
     }
     return;
-} 
+}
 
-async fn handle_socket(mut socket: WebSocket) {
+async fn handle_socket(mut socket: WebSocket, sync_handle: AuctionSyncHandle) {
     while let Some(msg) = socket.recv().await {
         let msg = if let Ok(msg) = msg {
             msg
@@ -78,14 +88,27 @@ async fn handle_socket(mut socket: WebSocket) {
                 let login_req: Result<LoginRequest, _> = decode(&data);
                 match login_req {
                     Err(e) => {
-                        return close_socket(socket, close_code::PROTOCOL, &format!("Error parsing login: {e}")).await;
+                        return close_socket(
+                            socket,
+                            close_code::PROTOCOL,
+                            &format!("Error parsing login: {e}"),
+                        )
+                        .await;
                     }
                     Ok(req) => match req {
                         LoginRequest::AsAdmin { key } => {
-                            return admin::handle_socket(socket, key).await
+                            match admin::handle_socket(socket, key, sync_handle).await {
+                                Ok(_) => {}
+                                Err(why) => error!("Handling socket failed: {why} {why:?}"),
+                            };
+                            return;
                         }
                         LoginRequest::AsUser { key } => {
-                            return user::handle_socket(socket, key).await
+                            match user::handle_socket(socket, key, sync_handle).await {
+                                Ok(_) => {}
+                                Err(why) => error!("Handling socket failed: {why} {why:?}"),
+                            }
+                            return;
                         }
                     },
                 }
@@ -94,7 +117,12 @@ async fn handle_socket(mut socket: WebSocket) {
             Message::Pong(_) => {}
             _ => {
                 // Not expecting any other type of message (specifically text and close)
-                return close_socket(socket, close_code::PROTOCOL, "Only expected binary messages").await;
+                return close_socket(
+                    socket,
+                    close_code::PROTOCOL,
+                    "Only expected binary messages",
+                )
+                .await;
             }
         }
     }

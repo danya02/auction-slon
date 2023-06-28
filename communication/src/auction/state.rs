@@ -1,12 +1,18 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{UserAccountData, Money};
+use crate::{Money, UserAccountData};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum AuctionState {
+    /// Waiting for auction to begin
+    WaitingForAuction,
+
+    /// Auction is concluded
+    AuctionOver,
+
     /// Waiting for an item to be submitted
     WaitingForItem,
-    
+
     /// Showing item before bidding
     ShowingItemBeforeBidding(AuctionItem),
 
@@ -24,34 +30,31 @@ pub enum AuctionState {
     SoldToYou {
         item: AuctionItem,
         sold_for: Money,
-        confirmation_code: String,  // show this to the auctioneer to retrieve item
+        confirmation_code: String, // show this to the auctioneer to retrieve item
     },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum AuctionItem {
     /// An item such that there is only one of them
-    UniqueItem {
-        name: String,
-    },
+    UniqueItem { name: String },
 
     /// An item sold as one of a sequence of identical items, distinguished by their numbers
     MultipleItem {
         name: String,
-        current_count: u32,  // starts at 1
+        current_count: u32, // starts at 1
         max_count: u32,
-    }
+    },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct BiddingState {
     item: AuctionItem,
     active_bid: ActiveBidState,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ActiveBidState {
-
     /// The current auction is an [English Auction](https://en.wikipedia.org/wiki/English_auction)
     EnglishAuctionBid {
         /// Current bid amount and person
@@ -70,7 +73,7 @@ pub enum ActiveBidState {
     JapaneseAuctionBid(JapaneseAuctionBidState),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum JapaneseAuctionBidState {
     /// The buyers are entering the arena
     EnterArena {
