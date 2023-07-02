@@ -1,6 +1,6 @@
 #![feature(async_closure)]
 
-use std::borrow::Cow;
+use std::{borrow::Cow, env, path::PathBuf};
 
 use auction::AuctionSyncHandle;
 use axum::{
@@ -13,6 +13,7 @@ use axum::{
     Router,
 };
 use communication::{decode, LoginRequest};
+use sqlx::SqlitePool;
 use tower_http::services::ServeDir;
 
 #[allow(unused_imports)]
@@ -23,12 +24,19 @@ mod auction;
 mod user;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let sync_handle = AuctionSyncHandle::new().await;
+    dotenvy::from_path(PathBuf::from("backend/.env"))?;
+
+    let pool_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL in .env file must be set to absolute path to SQLite database");
+    let pool = SqlitePool::connect(&pool_url).await?;
+    sqlx::migrate!().run(&pool).await?;
+
+    let sync_handle = AuctionSyncHandle::new(pool).await;
 
     let app = Router::new()
         .route("/websocket", get(handle_websocket_connection))
@@ -48,6 +56,8 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    Ok(())
 }
 
 async fn handle_websocket_connection(

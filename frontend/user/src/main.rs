@@ -1,8 +1,8 @@
 use auction_view::AuctionView;
 use common::layout::{Container, VerticalStack};
+use common::screens::fullscreen_message::FullscreenMsg;
 use communication::{auction::state::AuctionState, decode, encode, LoginRequest, ServerMessage};
 use gloo_storage::{SessionStorage, Storage};
-use screens::fullscreen_message::FullscreenMsg;
 use serde::Deserialize;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::HtmlInputElement;
@@ -10,7 +10,6 @@ use yew::prelude::*;
 use yew_hooks::prelude::*;
 
 mod auction_view;
-mod screens;
 
 #[derive(Deserialize)]
 struct CloseState {
@@ -20,7 +19,6 @@ struct CloseState {
 
 #[function_component(MainApp)]
 fn main_app() -> Html {
-    use wasm_bindgen::{JsCast, UnwrapThrowExt};
     let loc = &use_location();
     let path = format!(
         "ws{}://{}/websocket",

@@ -1,7 +1,7 @@
 use communication::{auction::state::AuctionState, UserAccountData};
 use yew::prelude::*;
 
-use crate::screens::fullscreen_message::FullscreenMsg;
+use common::screens::fullscreen_message::FullscreenMsg;
 
 #[derive(Properties, PartialEq)]
 pub struct AuctionViewProps {

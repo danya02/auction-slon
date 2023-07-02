@@ -1,6 +1,6 @@
 use axum::extract::ws::{close_code, Message, WebSocket};
 
-use communication::{encode, ServerMessage};
+use communication::{decode, encode, ServerMessage, UserClientMessage};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -16,7 +16,7 @@ macro_rules! send {
 pub async fn handle_socket(
     mut socket: WebSocket,
     key: String,
-    sync_handle: AuctionSyncHandle,
+    mut sync_handle: AuctionSyncHandle,
 ) -> anyhow::Result<()> {
     info!("Client connected as user with key {key:?}");
     let user = match sync_handle.get_member_by_key(key).await {
@@ -47,11 +47,30 @@ pub async fn handle_socket(
                 match maybe_packet {
                     None => return Ok(()), // connection closed
                     Some(maybe_packet) => match maybe_packet {
-                        Ok(packet) => {}, // TODO
+                        Ok(packet) => match packet {
+                            Message::Text(data) => {
+                                error!("User client sent us text data: {data:?}");
+                                close_socket(
+                                    socket,
+                                    close_code::UNSUPPORTED,
+                                    "Expected binary data only",
+                                ).await;
+                                return Ok(());
+                            },
+                            Message::Binary(data) => {
+                                let msg: UserClientMessage = decode(&data)?;
+                                match msg {}
+                            },
+                            _ => {}
+                        },
                         Err(why) => return Err(why)?,
                     },
                 }
-            }
+            },
+            _ = sync_handle.auction_state.changed() => {
+                let latest_state = sync_handle.auction_state.borrow().clone();
+                send!(socket, ServerMessage::AuctionState(latest_state));
+            },
         }
     }
 }

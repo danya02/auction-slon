@@ -9,3 +9,4 @@ edition = "2021"
 yew = "0.20.0"
 communication = { path = "../../communication" }
 yew-hooks = "0.2.0"
+web-sys = { version = "0.3.64" }

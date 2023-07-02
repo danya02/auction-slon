@@ -19,32 +19,32 @@ pub enum AuctionState {
     /// Currently bidding
     Bidding(BiddingState),
 
-    /// Item was sold to someone who isn't you
+    /// Item was sold to someone who isn't you (client only)
     SoldToSomeoneElse {
         item: AuctionItem,
         sold_to: UserAccountData,
         sold_for: Money,
     },
 
-    /// Item was sold to you
+    /// Item was sold to you (client only)
     SoldToYou {
         item: AuctionItem,
         sold_for: Money,
         confirmation_code: String, // show this to the auctioneer to retrieve item
     },
+
+    /// Item was sold to an auction member, who will retrieve it (admin only)
+    SoldToMember {
+        item: AuctionItem,
+        sold_for: Money,
+        sold_to: UserAccountData,
+        confirmation_code: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum AuctionItem {
-    /// An item such that there is only one of them
-    UniqueItem { name: String },
-
-    /// An item sold as one of a sequence of identical items, distinguished by their numbers
-    MultipleItem {
-        name: String,
-        current_count: u32, // starts at 1
-        max_count: u32,
-    },
+pub struct AuctionItem {
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

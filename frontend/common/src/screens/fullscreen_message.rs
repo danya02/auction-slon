@@ -1,4 +1,4 @@
-use common::{
+use crate::{
     components::UserAccountCard,
     layout::{Container, VerticalStack},
 };

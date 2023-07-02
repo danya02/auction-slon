@@ -1,4 +1,4 @@
-use auction::state::AuctionState;
+use auction::state::{AuctionItem, AuctionState};
 use serde::{Deserialize, Serialize};
 
 pub mod auction;
@@ -31,6 +31,7 @@ pub type Money = u32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct UserAccountData {
+    pub id: i64,
     pub user_name: String,
     pub balance: Money,
 }
@@ -42,20 +43,36 @@ pub enum ServerMessage {
     AuctionState(AuctionState),
 }
 
-impl From<UserAccountData> for ServerMessage {
-    fn from(value: UserAccountData) -> Self {
-        ServerMessage::YourAccount(value)
-    }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum AdminServerMessage {
+    AuctionMembers(Vec<UserAccountData>),
+    AuctionState(AuctionState),
+    ItemStates(Vec<ItemState>),
 }
 
-impl From<Vec<UserAccountData>> for ServerMessage {
-    fn from(value: Vec<UserAccountData>) -> Self {
-        ServerMessage::AuctionMembers(value)
-    }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ItemState {
+    pub item: AuctionItem,
+    pub state: ItemStateValue,
 }
 
-impl From<AuctionState> for ServerMessage {
-    fn from(value: AuctionState) -> Self {
-        ServerMessage::AuctionState(value)
-    }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum ItemStateValue {
+    /// The item is available to be sold
+    Sellable,
+
+    /// The item is the subject of the current sale
+    BeingSold,
+
+    /// The item has been sold, and should not be sold again
+    AlreadySold,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum AdminClientMessage {
+    /// Reset the auction to the "waiting for item" state.
+    StartAuction,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum UserClientMessage {}
