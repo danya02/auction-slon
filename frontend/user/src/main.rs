@@ -116,7 +116,8 @@ fn main_app() -> Html {
                 // Others = server closed connection
 
                 // using gloo's SessionStorage to avoid rerenders
-                if SessionStorage::get::<String>("login_key").is_err() { // meaning we already deleted key
+                if SessionStorage::get::<String>("login_key").is_err() {
+                    // meaning we already deleted key
                     // evil hack: we cannot stop use_websocket from reconnecting
                     // other than by causing a panic while rendering a component,
                     // AND this panic must be caused at some time after the error message was presented
@@ -137,13 +138,17 @@ fn main_app() -> Html {
         UseWebSocketReadyState::Open => {
             // We need to have the user info before continuing
             match &*user_account {
-                None => html!(<FullscreenMsg message="Waiting for server to send user info..." show_reload_button={true} />),
+                None => {
+                    html!(<FullscreenMsg message="Waiting for server to send user info..." show_reload_button={true} />)
+                }
                 Some(acc) => {
                     html!(<AuctionView state={(*auction_state).clone()} members={auction_members.current().clone()} account={acc.clone()} send={send_cb}/>)
                 }
             }
         }
-        _ => html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />),
+        _ => {
+            html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />)
+        }
     }
 }
 

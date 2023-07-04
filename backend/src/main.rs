@@ -22,8 +22,8 @@ use tracing::{debug, error, info, trace, warn};
 
 mod admin;
 mod auction;
-mod user;
 mod test_data;
+mod user;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -42,7 +42,10 @@ async fn main() -> anyhow::Result<()> {
     // create test data.
     #[cfg(debug_assertions)]
     {
-        if let None = sqlx::query!("SELECT * FROM auction_user LIMIT 1").fetch_optional(&pool).await? {
+        if let None = sqlx::query!("SELECT * FROM auction_user LIMIT 1")
+            .fetch_optional(&pool)
+            .await?
+        {
             warn!("Creating test data because database is empty!");
             make_test_data(&pool).await?;
         }

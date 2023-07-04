@@ -44,7 +44,27 @@ pub enum AuctionState {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct AuctionItem {
+    pub id: i64,
     pub name: String,
+    pub initial_price: Money,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct AuctionItemSaleState {
+    pub item: AuctionItem,
+    pub status: AuctionItemSaleStatus,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum AuctionItemSaleStatus {
+    /// The item has not yet been sold
+    Unsold,
+
+    /// The item has been sold to the given member
+    SoldToMember {
+        member: UserAccountData,
+        sale_price: Money,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

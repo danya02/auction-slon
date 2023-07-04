@@ -1,9 +1,6 @@
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
-use communication::{
-    decode, encode, AdminClientMessage, AdminServerMessage,
-    LoginRequest,
-};
+use communication::{decode, encode, AdminClientMessage, AdminServerMessage, LoginRequest};
 use gloo_storage::{SessionStorage, Storage};
 use log::info;
 use serde::Deserialize;
@@ -124,7 +121,8 @@ fn main_app() -> Html {
                 // Others = server closed connection
 
                 // using gloo's SessionStorage to avoid rerenders
-                if SessionStorage::get::<String>("admin_login_key").is_err() { // meaning we already deleted key
+                if SessionStorage::get::<String>("admin_login_key").is_err() {
+                    // meaning we already deleted key
                     // evil hack: we cannot stop use_websocket from reconnecting
                     // other than by causing a panic while rendering a component,
                     // AND this panic must be caused at some time after the error message was presented
@@ -147,10 +145,14 @@ fn main_app() -> Html {
                 (Some(state),) => {
                     html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} />)
                 }
-                _ => html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />),
+                _ => {
+                    html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />)
+                }
             }
         }
-        _ => html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />),
+        _ => {
+            html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />)
+        }
     }
 }
 
