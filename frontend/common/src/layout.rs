@@ -22,8 +22,8 @@ pub fn Container(props: &PlainChildrenProps) -> Html {
 pub fn VerticalStack(props: &PlainChildrenProps) -> Html {
     // https://stackoverflow.com/a/19461564/5936187
     html! {
-        <div style="height: 100%; display: flex; align-items: center; justify-content: center;">
-            { for props.children.iter() }
+        <div style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            { props.children.iter().map(|child| html!(<div class="mb-3">{child}</div>)).collect::<Html>() }
         </div>
     }
 }

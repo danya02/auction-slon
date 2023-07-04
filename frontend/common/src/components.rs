@@ -10,7 +10,7 @@ pub struct UserAccountCardProps {
 #[function_component]
 pub fn UserAccountCard(props: &UserAccountCardProps) -> Html {
     html! {
-        <div class="card">
+        <div class="card" style="min-width: 15em;">
             <div class="card-body">
                 <h5 class="card-title">{&props.account.user_name}</h5>
                 <h6 class="card-subtitle mb-5"> <MoneyDisplay money={props.account.balance} /> </h6>

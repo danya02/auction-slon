@@ -28,10 +28,7 @@ pub async fn handle_socket(
                 "Key does not match set user password",
             )
             .await;
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "User password does not match",
-            ))?;
+            return Ok(());
         }
         Some(user) => user,
     };

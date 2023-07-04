@@ -1,10 +1,11 @@
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
 use communication::{
-    auction::state::AuctionState, decode, encode, AdminClientMessage, AdminServerMessage,
+    decode, encode, AdminClientMessage, AdminServerMessage,
     LoginRequest,
 };
 use gloo_storage::{SessionStorage, Storage};
+use log::info;
 use serde::Deserialize;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::HtmlInputElement;
@@ -15,7 +16,7 @@ use crate::admin_ui::AdminUserInterface;
 
 mod admin_ui;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct CloseState {
     pub code: u16,
     pub reason: String,
@@ -35,7 +36,7 @@ fn main_app() -> Html {
     let login_key_value = &*login_key;
     let login_key_value = login_key_value
         .clone()
-        .expect("Rendering MainApp without admin_login_key being set by AppWrapper?");
+        .unwrap_or("INVALID LOGIN KEY".to_string());
 
     let close_state = use_state(|| None);
 
@@ -49,6 +50,7 @@ fn main_app() -> Html {
             onclose: Some(Box::new(move |event| {
                 let close_state_value: CloseState =
                     serde_wasm_bindgen::from_value(event.into()).unwrap();
+                info!("Received close with {close_state_value:?}");
                 close_state.set(Some(close_state_value));
             })),
             reconnect_limit: Some(u32::MAX), // Never give up!
@@ -116,9 +118,23 @@ fn main_app() -> Html {
     match &*close_state {
         None => {}
         Some(CloseState { code, reason }) => {
-            if code != &1006 {
-                // this special code indicates that the connection was abnormally lost. Any other code means the server closed the connection.
-                login_key.delete();
+            if code != &1006 && code != &1001 {
+                // 1006 = the connection was abnormally lost.
+                // 1001 = peer "went away": client navigated from page or server shutdown
+                // Others = server closed connection
+
+                // using gloo's SessionStorage to avoid rerenders
+                if SessionStorage::get::<String>("admin_login_key").is_err() { // meaning we already deleted key
+                    // evil hack: we cannot stop use_websocket from reconnecting
+                    // other than by causing a panic while rendering a component,
+                    // AND this panic must be caused at some time after the error message was presented
+                    // (and its loop must be completed -> cannot panic on a rerender caused by initial render,
+                    // because the initial render state would never get applied to the DOM)
+                    panic!("Panic caused to stop reconnect loop in main component");
+                }
+
+                SessionStorage::delete("admin_login_key");
+
                 return html!(<FullscreenMsg message={format!("WebSocket closed with: {code} {reason}")} show_reload_button={true} />);
             }
         }
@@ -131,10 +147,10 @@ fn main_app() -> Html {
                 (Some(state),) => {
                     html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} />)
                 }
-                _ => html!(<h1>{"Waiting for server to send auction info..."}</h1>),
+                _ => html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />),
             }
         }
-        _ => html!(<h1>{"WebSocket connection is not ready yet..."}</h1>),
+        _ => html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />),
     }
 }
 
@@ -168,7 +184,7 @@ fn app_wrapper() -> Html {
 
     if !(*did_set_login_key) {
         // Either we need to retrieve the preset key, or we need to ask the user to provide one.
-        if let Some(key) = login_key {
+        if let Some(_key) = login_key {
             did_set_login_key.set(true);
             html!() // the line above should cause a rerender right away, which would fall through to the else clause.
         } else {
@@ -190,5 +206,6 @@ fn app_wrapper() -> Html {
 }
 
 fn main() {
+    wasm_logger::init(wasm_logger::Config::default());
     yew::Renderer::<AppWrapper>::new().render();
 }

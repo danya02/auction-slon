@@ -65,27 +65,27 @@ fn AdminUiTabs(props: &AdminUiTabsProps) -> Html {
         <nav>
             <ul class="nav nav-pills nav-fill">
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::WaitingForAuction) {Some("active")} else {None})}>{"Waiting for auction to begin"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::WaitingForAuction) {Some("active")} else {None})}>{"Waiting for auction to begin"}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::WaitingForItem) {Some("active")} else {None})}>{"Waiting for item to be selected"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::WaitingForItem) {Some("active")} else {None})}>{"Waiting for item to be selected"}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::ShowingItemBeforeBidding(_)) {Some("active")} else {None})}>{"Item is being shown before bidding"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::ShowingItemBeforeBidding(_)) {Some("active")} else {None})}>{"Item is being shown before bidding"}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::Bidding(_)) {Some("active")} else {None})}>{"Bidding in progress"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::Bidding(_)) {Some("active")} else {None})}>{"Bidding in progress"}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::SoldToMember{..}) {Some("active")} else {None})}>{"Item is sold"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::SoldToMember{..}) {Some("active")} else {None})}>{"Item is sold"}</a>
                 </li>
 
                 <li class="nav-item">
-                    <a href="" class={classes!("nav-link", if matches!(props.state, AuctionState::AuctionOver) {Some("active")} else {None})}>{"Auction is now concluded"}</a>
+                    <a href="" class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::AuctionOver) {Some("active")} else {None})}>{"Auction is now concluded"}</a>
                 </li>
             </ul>
         </nav>

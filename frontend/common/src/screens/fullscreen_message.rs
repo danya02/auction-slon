@@ -39,12 +39,10 @@ pub fn FullscreenMsg(props: &FullscreenMsgProps) -> Html {
     html! {
         <Container>
             <VerticalStack>
-                <div>
-                    <h1>{&props.message}</h1>
-                    {maybe_user_data}
-                    {maybe_reload_button}
-                </div>
-            </VerticalStack>
+                <h1>{&props.message}</h1>
+                {maybe_user_data}
+                {maybe_reload_button}
+           </VerticalStack>
         </Container>
     }
 }

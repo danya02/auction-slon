@@ -14,6 +14,7 @@ use axum::{
 };
 use communication::{decode, LoginRequest};
 use sqlx::SqlitePool;
+use test_data::make_test_data;
 use tower_http::services::ServeDir;
 
 #[allow(unused_imports)]
@@ -22,6 +23,7 @@ use tracing::{debug, error, info, trace, warn};
 mod admin;
 mod auction;
 mod user;
+mod test_data;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,6 +37,16 @@ async fn main() -> anyhow::Result<()> {
         .expect("DATABASE_URL in .env file must be set to absolute path to SQLite database");
     let pool = SqlitePool::connect(&pool_url).await?;
     sqlx::migrate!().run(&pool).await?;
+
+    // If there are no users, and we are in a debug build,
+    // create test data.
+    #[cfg(debug_assertions)]
+    {
+        if let None = sqlx::query!("SELECT * FROM auction_user LIMIT 1").fetch_optional(&pool).await? {
+            warn!("Creating test data because database is empty!");
+            make_test_data(&pool).await?;
+        }
+    }
 
     let sync_handle = AuctionSyncHandle::new(pool).await;
 
