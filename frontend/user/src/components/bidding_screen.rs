@@ -150,9 +150,9 @@ fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
     html! {
         <>
             <div class="input-group mb-3" role="group">
-                <button disabled={value_down==0} class={classes!("btn", (value_down==0).then(|| "btn-danger-outline").unwrap_or_else(|| "btn-danger"))} onclick={bid_down}>{"-"}<MoneyDisplay money={value_down} /></button>
+                <button disabled={value_down==0} class={classes!("btn", if value_down==0 {"btn-danger-outline"} else {"btn-danger"})} onclick={bid_down}>{"-"}<MoneyDisplay money={value_down} /></button>
                 <span class="input-group-text"><MoneyDisplay money={*selected_bid} /></span>
-                <button disabled={value_up==0} class={classes!("btn", (value_up==0).then(|| "btn-success-outline").unwrap_or_else(|| "btn-success"))} onclick={bid_up}>{"+"}<MoneyDisplay money={value_up} /></button>
+                <button disabled={value_up==0} class={classes!("btn", if value_up==0 {"btn-success-outline"} else {"btn-success"})} onclick={bid_up}>{"+"}<MoneyDisplay money={value_up} /></button>
             </div>
             <div class="d-grid mb-3">
                 {send_btn}

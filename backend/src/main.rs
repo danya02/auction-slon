@@ -42,9 +42,10 @@ async fn main() -> anyhow::Result<()> {
     // create test data.
     #[cfg(debug_assertions)]
     {
-        if let None = sqlx::query!("SELECT * FROM auction_user LIMIT 1")
+        if sqlx::query!("SELECT * FROM auction_user LIMIT 1")
             .fetch_optional(&pool)
             .await?
+            .is_none()
         {
             warn!("Creating test data because database is empty!");
             make_test_data(&pool).await?;
@@ -79,8 +80,7 @@ async fn handle_websocket_connection(
     State(sync_handle): State<AuctionSyncHandle>,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let handle = sync_handle.clone();
-    ws.on_upgrade(async move |s| handle_socket(s, handle).await)
+    ws.on_upgrade(async move |s| handle_socket(s, sync_handle).await)
 }
 
 pub async fn close_socket(mut socket: WebSocket, code: CloseCode, reason: &str) {
@@ -88,13 +88,13 @@ pub async fn close_socket(mut socket: WebSocket, code: CloseCode, reason: &str) 
     {
         socket
             .send(Message::Close(Some(CloseFrame {
-                code: code,
+                code,
                 reason: Cow::from(reason.to_string()),
             })))
             .await;
         // We do not care whether this message is received, as we're closing the connection.
     }
-    return;
+    drop(socket);
 }
 
 async fn handle_socket(mut socket: WebSocket, sync_handle: AuctionSyncHandle) {
@@ -105,7 +105,6 @@ async fn handle_socket(mut socket: WebSocket, sync_handle: AuctionSyncHandle) {
             // client disconnected
             return;
         };
-
         match msg {
             Message::Binary(data) => {
                 // At this time, we are expecting only a login request

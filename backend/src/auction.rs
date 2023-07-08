@@ -102,11 +102,11 @@ async fn auction_manager(
 }
 
 trait Ignorable {
-    fn ignore(self) -> ();
+    fn ignore(self);
 }
 
 impl<T, E> Ignorable for Result<T, E> {
-    fn ignore(self) -> () {}
+    fn ignore(self) {}
 }
 
 /// Represents events that can change the progress of the auction.
@@ -182,7 +182,7 @@ async fn auction_manager_inner(
                         let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
                         let state = match row.buyer_id {
                             None => ItemStateValue::Sellable,
-                            Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id: id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
+                            Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
                         };
                         // TODO: ItemStateValue::BeingSold
                         item_data.push(ItemState {item, state});

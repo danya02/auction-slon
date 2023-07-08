@@ -47,7 +47,7 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
 
         item_rows.push(item_html);
     }
-    let h: Html = item_rows.iter().map(|i| i.clone()).collect();
+    let h: Html = item_rows.iter().cloned().collect();
     // TODO: why is the clone() necessary???
     h
 }

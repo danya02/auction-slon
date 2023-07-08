@@ -85,10 +85,10 @@ fn main_app() -> Html {
         use_effect_with_deps(
             move |message| {
                 if let Some(message) = &**message {
-                    match decode(&message) {
+                    match decode(message) {
                         Err(why) => eprintln!("Error receiving server message: {why}"),
                         Ok(msg) => match msg {
-                            ServerMessage::YourAccount(acc) => user_account.set(Some(acc.clone())),
+                            ServerMessage::YourAccount(acc) => user_account.set(Some(acc)),
                             ServerMessage::AuctionMembers(members) => auction_members.set(members),
                             ServerMessage::AuctionState(state) => auction_state.set(state),
                         },
@@ -159,7 +159,7 @@ fn app_wrapper() -> Html {
     let login_key: Option<String> = SessionStorage::get("login_key").unwrap_or_default();
 
     let did_set_login_key = use_state(|| false);
-    let pending_login_key = use_state(|| String::new());
+    let pending_login_key = use_state(String::new);
 
     let pending_login_key_input = {
         let pending_login_key = pending_login_key.clone();
@@ -172,7 +172,7 @@ fn app_wrapper() -> Html {
     };
 
     let pending_login_key_submit = {
-        let pending_login_key = pending_login_key.clone();
+        //let pending_login_key = pending_login_key.clone();
         let did_set_login_key = did_set_login_key.clone();
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
