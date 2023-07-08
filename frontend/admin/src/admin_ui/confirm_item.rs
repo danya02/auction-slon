@@ -1,0 +1,52 @@
+use common::components::ItemDisplay;
+use communication::{auction::state::AuctionItem, AdminClientMessage};
+use yew::prelude::*;
+
+use super::SendToServer;
+
+#[derive(Properties, PartialEq)]
+pub struct ConfirmItemProps {
+    pub item: AuctionItem,
+    pub send: SendToServer,
+}
+
+#[function_component]
+pub fn ConfirmItemToSell(props: &ConfirmItemProps) -> Html {
+    let item = &props.item;
+    let item_id = item.id;
+    let reset_cb = {
+        let send = props.send.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            send.emit(AdminClientMessage::StartAuction);
+        })
+    };
+    let start_as_english_cb = {
+        let send = props.send.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            send.emit(AdminClientMessage::RunEnglishAuction(item_id));
+        })
+    };
+    let start_as_japanese_cb = {
+        let send = props.send.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            send.emit(AdminClientMessage::RunJapaneseAuction(item_id));
+        })
+    };
+
+    html! {
+        <>
+        <h1>{"You are about to start selling:"}</h1>
+        <ItemDisplay item={item.clone()} />
+        <div class="d-grid gap-2 col-6 mx-auto">
+            <button class="btn btn-primary" type="button" onclick={start_as_english_cb}>{"Sell with English auction"}</button>
+            <button class="btn btn-success" type="button" onclick={start_as_japanese_cb}>{"Sell with Japanese auction"}</button>
+        </div>
+        <div class="d-grid gap-2 col-12 mx-auto">
+            <button class="btn btn-danger" type="button" onclick={reset_cb}>{"Do not sell this now"}</button>
+        </div>
+        </>
+    }
+}

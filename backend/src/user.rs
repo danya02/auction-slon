@@ -1,6 +1,8 @@
 use axum::extract::ws::{close_code, Message, WebSocket};
 
-use communication::{decode, encode, ServerMessage, UserClientMessage};
+use communication::{
+    auction::state::AuctionState, decode, encode, ServerMessage, UserClientMessage,
+};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -34,7 +36,7 @@ pub async fn handle_socket(
     };
 
     // Now, give the user the current info on who they are, other members of the auction, and the auction's state.
-    send!(socket, ServerMessage::YourAccount(user));
+    send!(socket, ServerMessage::YourAccount(user.clone()));
     let members = sync_handle.auction_members.borrow().clone();
     send!(socket, ServerMessage::AuctionMembers(members));
 
@@ -56,7 +58,11 @@ pub async fn handle_socket(
                             },
                             Message::Binary(data) => {
                                 let msg: UserClientMessage = decode(&data)?;
-                                match msg {}
+                                match msg {
+                                    UserClientMessage::BidInEnglishAuction { item_id, bid_amount } => {
+                                        sync_handle.send_event(crate::auction::AuctionEvent::BidInEnglishAuction { user_id: user.id, item_id, bid_amount }).await;
+                                    }
+                                }
                             },
                             _ => {}
                         },
@@ -66,6 +72,17 @@ pub async fn handle_socket(
             },
             _ = sync_handle.auction_state.changed() => {
                 let latest_state = sync_handle.auction_state.borrow().clone();
+                // Map SoldToMember to SoldToYou or SoldToSomeoneElse
+                let latest_state = match latest_state {
+                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code } => {
+                        if sold_to.id == user.id {
+                            AuctionState::SoldToYou { item, sold_for, confirmation_code }
+                        } else {
+                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for }
+                        }
+                    },
+                    other => other
+                };
                 send!(socket, ServerMessage::AuctionState(latest_state));
             },
         }

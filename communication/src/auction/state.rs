@@ -50,27 +50,9 @@ pub struct AuctionItem {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct AuctionItemSaleState {
-    pub item: AuctionItem,
-    pub status: AuctionItemSaleStatus,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum AuctionItemSaleStatus {
-    /// The item has not yet been sold
-    Unsold,
-
-    /// The item has been sold to the given member
-    SoldToMember {
-        member: UserAccountData,
-        sale_price: Money,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct BiddingState {
-    item: AuctionItem,
-    active_bid: ActiveBidState,
+    pub item: AuctionItem,
+    pub active_bid: ActiveBidState,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -79,8 +61,7 @@ pub enum ActiveBidState {
     EnglishAuctionBid {
         /// Current bid amount and person
         current_bid_amount: Money,
-        current_bid: UserAccountData,
-        current_bid_is_you: bool,
+        current_bidder: UserAccountData,
 
         /// Currently allowed minimum increment
         minimum_increment: Money,

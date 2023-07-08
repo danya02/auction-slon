@@ -4,13 +4,15 @@ use yew::prelude::*;
 pub struct PlainChildrenProps {
     #[prop_or_default]
     pub children: Children,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 /// Wrap the items in a Bootstrap container class
 #[function_component]
 pub fn Container(props: &PlainChildrenProps) -> Html {
     html! {
-        <div class="container">
+        <div class={classes!("container-fluid", props.class.clone())} style="height: 100vh;">
             { for props.children.iter() }
         </div>
     }
@@ -22,7 +24,7 @@ pub fn Container(props: &PlainChildrenProps) -> Html {
 pub fn VerticalStack(props: &PlainChildrenProps) -> Html {
     // https://stackoverflow.com/a/19461564/5936187
     html! {
-        <div style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <div style="height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;" class={classes!(props.class.clone())}>
             { props.children.iter().map(|child| html!(<div class="mb-3">{child}</div>)).collect::<Html>() }
         </div>
     }

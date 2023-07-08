@@ -50,13 +50,13 @@ pub enum AdminServerMessage {
     ItemStates(Vec<ItemState>),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ItemState {
     pub item: AuctionItem,
     pub state: ItemStateValue,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ItemStateValue {
     /// The item is available to be sold
     Sellable,
@@ -65,14 +65,28 @@ pub enum ItemStateValue {
     BeingSold,
 
     /// The item has been sold, and should not be sold again
-    AlreadySold,
+    AlreadySold {
+        buyer: UserAccountData,
+        sale_price: Money,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum AdminClientMessage {
     /// Reset the auction to the "waiting for item" state.
     StartAuction,
+
+    /// Prepare for auctioning an item by its ID
+    PrepareAuctioning(i64),
+
+    /// Start auctioning an item according to the rules of an English auction.
+    RunEnglishAuction(i64),
+
+    /// Start auctioning an item according to the rules of a Japanese auction.
+    RunJapaneseAuction(i64),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum UserClientMessage {}
+pub enum UserClientMessage {
+    BidInEnglishAuction { item_id: i64, bid_amount: Money },
+}

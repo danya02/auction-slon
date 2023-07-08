@@ -1,5 +1,5 @@
-use communication::{Money, UserAccountData};
-use yew::prelude::*;
+use communication::{auction::state::AuctionItem, Money, UserAccountData};
+use yew::{prelude::*, virtual_dom::VNode};
 
 #[derive(Properties, PartialEq)]
 pub struct UserAccountCardProps {
@@ -13,7 +13,7 @@ pub fn UserAccountCard(props: &UserAccountCardProps) -> Html {
         <div class="card" style="min-width: 15em;">
             <div class="card-body">
                 <h5 class="card-title">{&props.account.user_name}</h5>
-                <h6 class="card-subtitle mb-5"> <MoneyDisplay money={props.account.balance} /> </h6>
+                <h6 class="card-subtitle mb-5">{"Balance: "}<MoneyDisplay money={props.account.balance} /> </h6>
             </div>
         </div>
     }
@@ -27,10 +27,31 @@ pub struct MoneyDisplayProps {
 /// Text span showing an amount of money, with a currency symbol.
 #[function_component]
 pub fn MoneyDisplay(props: &MoneyDisplayProps) -> Html {
+    let currency_symbol_svg = include_str!("../../../slon-icon-filled.svg");
+    let currency_symbol = VNode::from_html_unchecked(currency_symbol_svg.into());
     html! {
         <span style="color: #D4AF37"> // strong yellow / gold color
-            {props.money}
-            {"¤"}  // generic currency symbol; TODO change this for the project
+            {props.money}{" "}
+            {currency_symbol}
         </span>
     }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct ItemDisplayProps {
+    pub item: AuctionItem,
+}
+
+/// Show overview info card about an item, including its name and initial price.
+#[function_component]
+pub fn ItemDisplay(props: &ItemDisplayProps) -> Html {
+    let item = &props.item;
+    html!(
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{&item.name}</h5>
+                <h6 class="card-subtitle">{"Initial price: "}<MoneyDisplay money={item.initial_price} /></h6>
+            </div>
+        </div>
+    )
 }

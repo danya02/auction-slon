@@ -11,6 +11,7 @@ use yew::prelude::*;
 use yew_hooks::prelude::*;
 
 mod auction_view;
+mod components;
 
 #[derive(Deserialize, Debug)]
 struct CloseState {

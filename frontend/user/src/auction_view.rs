@@ -3,6 +3,8 @@ use yew::prelude::*;
 
 use common::screens::fullscreen_message::FullscreenMsg;
 
+use crate::components::{bidding_screen::BiddingScreen, show_item_before_bid::ShowItemBeforeBid, item_sold::{SoldToYou, SoldToSomeoneElse}};
+
 #[derive(Properties, PartialEq)]
 pub struct AuctionViewProps {
     pub state: AuctionState,
@@ -22,6 +24,18 @@ pub fn AuctionView(props: &AuctionViewProps) -> Html {
         }
         AuctionState::WaitingForItem => {
             html!(<FullscreenMsg message="Waiting for item to be presented..." show_reload_button={true} user_account={props.account.clone()}/>)
+        }
+        AuctionState::ShowingItemBeforeBidding(item) => {
+            html!(<ShowItemBeforeBid item={item.clone()} />)
+        }
+        AuctionState::Bidding(bid_state) => {
+            html!(<BiddingScreen bid_state={bid_state.clone()} send={props.send.clone()} my_account={props.account.clone()}/>)
+        }
+        AuctionState::SoldToYou { item, sold_for, confirmation_code } => {
+            html!(<SoldToYou item={item.clone()} sold_for={sold_for} confirmation_code={confirmation_code.clone()} />)
+        }
+        AuctionState::SoldToSomeoneElse { item, sold_to, sold_for } => {
+            html!(<SoldToSomeoneElse item={item.clone()} sold_to={sold_to.clone()} sold_for={sold_for} />)
         }
         _ => {
             html!(<FullscreenMsg message={format!("Current auction state is not implemented: {:?}", &props.state)} show_reload_button={true} user_account={props.account.clone()}/>)

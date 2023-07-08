@@ -143,7 +143,7 @@ fn main_app() -> Html {
             // We need to have the auction info before continuing
             match (&*auction_state,) {
                 (Some(state),) => {
-                    html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} />)
+                    html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} items={item_states.current().clone()}/>)
                 }
                 _ => {
                     html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />)

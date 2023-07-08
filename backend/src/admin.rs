@@ -63,7 +63,10 @@ pub async fn handle_socket(
                             Message::Binary(data) => {
                                 let msg: AdminClientMessage = decode(&data)?;
                                 match msg {
-                                    AdminClientMessage::StartAuction => {sync_handle.send_event(AuctionEvent::StartAuction).await},
+                                    AdminClientMessage::StartAuction => sync_handle.send_event(AuctionEvent::StartAuction).await,
+                                    AdminClientMessage::PrepareAuctioning(item_id) => sync_handle.send_event(AuctionEvent::PrepareAuctioning(item_id)).await,
+                                    AdminClientMessage::RunEnglishAuction(item_id) => sync_handle.send_event(AuctionEvent::RunEnglishAuction(item_id)).await,
+                                    AdminClientMessage::RunJapaneseAuction(item_id) => sync_handle.send_event(AuctionEvent::RunJapaneseAuction(item_id)).await,
                                 }
                             },
                             _ => {},
@@ -74,6 +77,10 @@ pub async fn handle_socket(
             _ = sync_handle.auction_state.changed() => {
                 let latest_state = sync_handle.auction_state.borrow().clone();
                 send!(socket, AdminServerMessage::AuctionState(latest_state));
+            },
+            _ = sync_handle.item_sale_states.changed() => {
+                let latest_state = sync_handle.item_sale_states.borrow().clone();
+                send!(socket, AdminServerMessage::ItemStates(latest_state));
             },
         }
     }
