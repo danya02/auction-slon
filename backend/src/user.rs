@@ -61,7 +61,10 @@ pub async fn handle_socket(
                                 match msg {
                                     UserClientMessage::BidInEnglishAuction { item_id, bid_amount } => {
                                         sync_handle.send_event(crate::auction::AuctionEvent::BidInEnglishAuction { user_id: user.id, item_id, bid_amount }).await;
-                                    }
+                                    },
+                                    UserClientMessage::JapaneseAuctionAction { item_id, action } => {
+                                        sync_handle.send_event(crate::auction::AuctionEvent::JapaneseAuctionAction(crate::auction::JapaneseAuctionEvent::UserAction { user_id: user.id, item_id, action })).await;
+                                    },
                                 }
                             },
                             _ => {}

@@ -20,6 +20,41 @@ pub fn UserAccountCard(props: &UserAccountCardProps) -> Html {
 }
 
 #[derive(Properties, PartialEq)]
+pub struct UserAccountTableProps {
+    pub accounts: Vec<UserAccountData>,
+}
+
+/// Table showing many user names and balances
+#[function_component]
+pub fn UserAccountTable(props: &UserAccountTableProps) -> Html {
+    html! {
+        <table class="table table-sm table-dark table-striped">
+            <colgroup>
+                <col span="1" style="width: 70%;" />
+                <col span="1" style="width: 30%;" />
+            </colgroup>
+
+            <thead>
+                <tr>
+                    <th scope="col">{"Name"}</th>
+                    <th scope="col">{"Balance"}</th>
+                </tr>
+            </thead>
+
+            <tbody class="table-group-divider">
+                { for props.accounts.iter().map(|i| html!(
+                    <tr>
+                    <td>{&i.user_name}</td>
+                    <td><MoneyDisplay money={i.balance} /></td>
+                    </tr>
+                    )
+                )}
+            </tbody>
+        </table>
+    }
+}
+
+#[derive(Properties, PartialEq)]
 pub struct MoneyDisplayProps {
     pub money: Money,
 }

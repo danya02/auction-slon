@@ -1,3 +1,8 @@
+dev: reset-db all
+
+reset-db:
+	cd backend && sqlx db reset -y
+
 all: fetch-bootstrap svg-size-fix build-front-admin build-front-user clean-bootstrap svg-size-unfix build-backend run-backend
 
 fetch-bootstrap:

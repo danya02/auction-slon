@@ -1,9 +1,10 @@
 use common::{
-    components::{ItemDisplay, MoneyDisplay, UserAccountCard},
+    components::{ItemDisplay, MoneyDisplay, UserAccountCard, UserAccountTable},
     layout::Container,
 };
 use communication::{
-    auction::state::BiddingState, AdminClientMessage,
+    auction::state::{BiddingState, JapaneseAuctionBidState},
+    AdminClientMessage,
 };
 use yew::prelude::*;
 
@@ -40,9 +41,36 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 </>
             }
         }
-        communication::auction::state::ActiveBidState::JapaneseAuctionBid(_) => {
-            html! {<h1>{"Japanese auction display not implemented yet"}</h1>}
-        }
+        communication::auction::state::ActiveBidState::JapaneseAuctionBid(state) => match state {
+            JapaneseAuctionBidState::EnterArena {
+                currently_in_arena,
+                seconds_until_arena_closes,
+            } => {
+                html! {
+                    <>
+                        <h1>{"Arena is now open"}</h1>
+                        <p>{"Arena closes in: "}{seconds_until_arena_closes}</p>
+                        <div class="overflow-scroll" style="max-height: 40%;">
+                            <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                            <UserAccountTable accounts={currently_in_arena.clone()} />
+                        </div>
+                    </>
+                }
+            }
+            JapaneseAuctionBidState::ClockRunning {
+                currently_in_arena,
+                current_price,
+            } => html! {
+                <>
+                    <h1>{"Arena is now closed"}</h1>
+                    <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                    <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
+                        <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                        <UserAccountTable accounts={currently_in_arena.clone()} />
+                    </div>
+                </>
+            },
+        },
     };
     let return_cb = {
         let send = props.send.clone();
@@ -51,7 +79,6 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             send.emit(AdminClientMessage::StartAuction);
         })
     };
-
 
     html! {
         <Container>
@@ -66,7 +93,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             <div class="d-grid gap-2">
                 <button onclick={return_cb} class="btn btn-danger">{"Return to item select"}</button>
             </div>
-            
+
         </Container>
     }
 }

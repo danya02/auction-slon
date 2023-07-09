@@ -79,7 +79,6 @@ pub enum JapaneseAuctionBidState {
     /// The buyers are entering the arena
     EnterArena {
         currently_in_arena: Vec<UserAccountData>,
-        you_in_arena: bool,
 
         seconds_until_arena_closes: f32,
     },
@@ -87,7 +86,6 @@ pub enum JapaneseAuctionBidState {
     /// The buyers can now exit the arena; last person standing wins the item
     ClockRunning {
         currently_in_arena: Vec<UserAccountData>,
-        you_in_arena: bool,
 
         current_price: Money,
     },

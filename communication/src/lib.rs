@@ -1,4 +1,7 @@
-use auction::state::{AuctionItem, AuctionState};
+use auction::{
+    actions::JapaneseAuctionAction,
+    state::{AuctionItem, AuctionState},
+};
 use serde::{Deserialize, Serialize};
 
 pub mod auction;
@@ -88,5 +91,12 @@ pub enum AdminClientMessage {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum UserClientMessage {
-    BidInEnglishAuction { item_id: i64, bid_amount: Money },
+    BidInEnglishAuction {
+        item_id: i64,
+        bid_amount: Money,
+    },
+    JapaneseAuctionAction {
+        item_id: i64,
+        action: JapaneseAuctionAction,
+    },
 }
