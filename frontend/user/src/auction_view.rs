@@ -3,7 +3,11 @@ use yew::prelude::*;
 
 use common::screens::fullscreen_message::FullscreenMsg;
 
-use crate::components::{bidding_screen::BiddingScreen, show_item_before_bid::ShowItemBeforeBid, item_sold::{SoldToYou, SoldToSomeoneElse}};
+use crate::components::{
+    bidding_screen::BiddingScreen,
+    item_sold::{SoldToSomeoneElse, SoldToYou},
+    show_item_before_bid::ShowItemBeforeBid,
+};
 
 #[derive(Properties, PartialEq)]
 pub struct AuctionViewProps {
@@ -31,10 +35,18 @@ pub fn AuctionView(props: &AuctionViewProps) -> Html {
         AuctionState::Bidding(bid_state) => {
             html!(<BiddingScreen bid_state={bid_state.clone()} send={props.send.clone()} my_account={props.account.clone()}/>)
         }
-        AuctionState::SoldToYou { item, sold_for, confirmation_code } => {
+        AuctionState::SoldToYou {
+            item,
+            sold_for,
+            confirmation_code,
+        } => {
             html!(<SoldToYou item={item.clone()} sold_for={sold_for} confirmation_code={confirmation_code.clone()} />)
         }
-        AuctionState::SoldToSomeoneElse { item, sold_to, sold_for } => {
+        AuctionState::SoldToSomeoneElse {
+            item,
+            sold_to,
+            sold_for,
+        } => {
             html!(<SoldToSomeoneElse item={item.clone()} sold_to={sold_to.clone()} sold_for={sold_for} />)
         }
         _ => {

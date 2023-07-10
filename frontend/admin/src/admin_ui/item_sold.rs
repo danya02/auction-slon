@@ -1,6 +1,6 @@
 use common::components::{ItemDisplay, UserAccountCard};
 use common::layout::{Container, VerticalStack};
-use communication::{auction::state::AuctionItem, AdminClientMessage, UserAccountData, Money};
+use communication::{auction::state::AuctionItem, AdminClientMessage, Money, UserAccountData};
 use yew::prelude::*;
 
 use super::SendToServer;

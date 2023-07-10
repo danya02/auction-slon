@@ -3,14 +3,14 @@ use communication::{auction::state::AuctionState, AdminClientMessage, ItemState}
 use yew::prelude::*;
 
 use crate::admin_ui::{
-    choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell,
-    show_bid_progress::ShowBidProgress, item_sold::ItemSoldDisplay,
+    choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell, item_sold::ItemSoldDisplay,
+    show_bid_progress::ShowBidProgress,
 };
 
 mod choose_item;
 mod confirm_item;
-mod show_bid_progress;
 mod item_sold;
+mod show_bid_progress;
 
 #[derive(Properties, PartialEq)]
 pub struct AdminUiProps {
@@ -63,7 +63,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
             confirmation_code,
         } => {
             html!(<ItemSoldDisplay item={item.clone()} sold_to={sold_to.clone()} sold_for={*sold_for} confirmation_code={confirmation_code.clone()} send={props.send.clone()} />)
-        },
+        }
     };
 
     html! {

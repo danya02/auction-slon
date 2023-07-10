@@ -10,7 +10,6 @@ pub struct ItemSoldToYouProps {
     pub item: AuctionItem,
     pub sold_for: Money,
     pub confirmation_code: String,
-
 }
 
 #[function_component]
@@ -21,20 +20,18 @@ pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
                 <h1>{"Sold: "}{&props.item.name}</h1>
                 <p>{"Paid: "}<MoneyDisplay money={props.sold_for} /></p>
                 <p>{"Show this code to the auctioneer:"}</p>
-                <h2 style="font-size: calc(100vw/0.625/4);">{&props.confirmation_code}</h2> 
+                <h2 style="font-size: calc(100vw/0.625/4);">{&props.confirmation_code}</h2>
                 // Size calc: https://stackoverflow.com/a/31322756/5936187
             </VerticalStack>
         </Container>
     }
 }
 
-
 #[derive(Properties, PartialEq)]
 pub struct ItemSoldToSomeoneElseProps {
     pub item: AuctionItem,
     pub sold_for: Money,
     pub sold_to: UserAccountData,
-
 }
 
 #[function_component]

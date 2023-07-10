@@ -1,3 +1,7 @@
+// These two attributes are needed for Yew function components and generated types
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
 use auction_view::AuctionView;
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
