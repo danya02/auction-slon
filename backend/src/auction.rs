@@ -683,6 +683,8 @@ async fn run_japanese_auction(
                             JapaneseAuctionAction::EnterArena => {
                                 // If the arena is closed, ignore this.
                                 if arena_is_closed {continue;}
+                                // If the user with this ID is already in the arena, ignore this.
+                                if arena.iter().any(|i| i.id == user_id) {continue;}
                                 let row = query!("SELECT * FROM auction_user WHERE id=?", user_id).fetch_optional(pool).await?;
                                 let row = match row {
                                     None => {warn!("User ID {user_id} tried to enter Japanese arena, but does not exist; hacking detected?"); continue;}

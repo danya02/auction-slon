@@ -99,6 +99,9 @@ pub enum AdminClientMessage {
 
     /// Set the auction to the "preparing" state.
     StartAuctionAnew,
+
+    /// If a Japanese auction is running, remove a user from the arena, if they are there.
+    KickFromJapaneseAuction(i64, i64),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -69,6 +69,16 @@ pub async fn handle_socket(
                                     AdminClientMessage::RunJapaneseAuction(item_id) => sync_handle.send_event(AuctionEvent::RunJapaneseAuction(item_id)).await,
                                     AdminClientMessage::FinishAuction => sync_handle.send_event(AuctionEvent::FinishAuction).await,
                                     AdminClientMessage::StartAuctionAnew => sync_handle.send_event(AuctionEvent::StartAuctionAnew).await,
+                                    AdminClientMessage::KickFromJapaneseAuction(item_id, user_id) => sync_handle.send_event(
+                                        AuctionEvent::JapaneseAuctionAction(
+                                            // Emit an event that's as though the user left on their own
+                                            crate::auction::JapaneseAuctionEvent::UserAction {
+                                                user_id,
+                                                item_id,
+                                                action: communication::auction::actions::JapaneseAuctionAction::ExitArena,
+                                            }
+                                        )
+                                    ).await,
                                 }
                             },
                             _ => {},

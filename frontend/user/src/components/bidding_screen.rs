@@ -222,22 +222,12 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
     use_interval(move || trigger.force_update(), 10);
 
     // If changed_recently, then the change occurred on the last render:
-    // record the time, and perform any needed changes.
+    // record the time.
+    // This is because we need the performance object in order to do this,
+    // and it's hard to pass it into each of the callbacks below.
     if *changed_recently {
         changed_recently.set(false);
         changed_at.set(performance.now());
-
-        // If the arena is currently open, and we're pressing the button, and we're not in the arena,
-        // the change should be sent immediately.
-        // If it's a button release (of any kind), then we should only send it after a delay.
-        if arena_is_open && *pressed && !me_in_arena {
-            props
-                .send
-                .emit(encode(&UserClientMessage::JapaneseAuctionAction {
-                    item_id: props.item_id,
-                    action: JapaneseAuctionAction::EnterArena,
-                }));
-        };
     }
 
     // If the button is released, and it has been released for more than the timeout,
@@ -253,6 +243,20 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             .emit(encode(&UserClientMessage::JapaneseAuctionAction {
                 item_id: props.item_id,
                 action: JapaneseAuctionAction::ExitArena,
+            }));
+    }
+
+    // If the button is pressed, but we are not in the arena, and the arena is open,
+    // then we want to enter the arena.
+    // As before, the loop will stop as soon as the change is acknowledged.
+    // (This also helps when the admin kicks us from the arena, but we still want to be there.
+    //  If the admin kicks us during the re-press countdown, we do nothing.)
+    if *pressed && !me_in_arena && arena_is_open && !*changed_recently {
+        props
+            .send
+            .emit(encode(&UserClientMessage::JapaneseAuctionAction {
+                item_id: props.item_id,
+                action: JapaneseAuctionAction::EnterArena,
             }));
     }
 

@@ -103,10 +103,10 @@ impl JapaneseAuctionBidState {
         match self {
             JapaneseAuctionBidState::EnterArena {
                 currently_in_arena, ..
-            } => &currently_in_arena,
+            } => currently_in_arena,
             JapaneseAuctionBidState::ClockRunning {
                 currently_in_arena, ..
-            } => &currently_in_arena,
+            } => currently_in_arena,
         }
     }
 }

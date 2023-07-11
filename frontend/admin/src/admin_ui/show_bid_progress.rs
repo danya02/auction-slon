@@ -4,7 +4,7 @@ use common::{
 };
 use communication::{
     auction::state::{BiddingState, JapaneseAuctionBidState},
-    AdminClientMessage,
+    AdminClientMessage, UserAccountData,
 };
 use yew::prelude::*;
 
@@ -41,36 +41,58 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 </>
             }
         }
-        communication::auction::state::ActiveBidState::JapaneseAuctionBid(state) => match state {
-            JapaneseAuctionBidState::EnterArena {
-                currently_in_arena,
-                seconds_until_arena_closes,
-            } => {
-                html! {
+        communication::auction::state::ActiveBidState::JapaneseAuctionBid(state) => {
+            let item_id = props.bid_state.item.id;
+            // This callback gets a UserAccountData, and returns a button for kicking that member from the arena
+            let get_kick_btn_cb = {
+                let send = props.send.clone();
+                Callback::from(move |user: UserAccountData| {
+                    // This is the inner generated callback, which actually performs the kick for this specific user
+                    let kick_press_cb = {
+                        let send = send.clone();
+                        Callback::from(move |e: MouseEvent| {
+                            e.prevent_default();
+                            send.emit(AdminClientMessage::KickFromJapaneseAuction(
+                                item_id, user.id,
+                            ));
+                        })
+                    };
+
+                    // This is the HTML for the button
+                    html!(<button class="btn btn-danger" onclick={kick_press_cb}>{"Kick from arena"}</button>)
+                })
+            };
+            match state {
+                JapaneseAuctionBidState::EnterArena {
+                    currently_in_arena,
+                    seconds_until_arena_closes,
+                } => {
+                    html! {
+                        <>
+                            <h1>{"Arena is now open"}</h1>
+                            <p>{"Arena closes in: "}{seconds_until_arena_closes}</p>
+                            <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
+                                <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                                <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
+                            </div>
+                        </>
+                    }
+                }
+                JapaneseAuctionBidState::ClockRunning {
+                    currently_in_arena,
+                    current_price,
+                } => html! {
                     <>
-                        <h1>{"Arena is now open"}</h1>
-                        <p>{"Arena closes in: "}{seconds_until_arena_closes}</p>
-                        <div class="overflow-scroll" style="max-height: 40%;">
+                        <h1>{"Arena is now closed"}</h1>
+                        <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                        <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                             <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                            <UserAccountTable accounts={currently_in_arena.clone()} />
+                            <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
                         </div>
                     </>
-                }
+                },
             }
-            JapaneseAuctionBidState::ClockRunning {
-                currently_in_arena,
-                current_price,
-            } => html! {
-                <>
-                    <h1>{"Arena is now closed"}</h1>
-                    <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
-                    <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
-                        <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                        <UserAccountTable accounts={currently_in_arena.clone()} />
-                    </div>
-                </>
-            },
-        },
+        }
     };
     let return_cb = {
         let send = props.send.clone();

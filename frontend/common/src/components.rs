@@ -25,6 +25,7 @@ pub fn UserAccountCard(props: &UserAccountCardProps) -> Html {
 #[derive(Properties, PartialEq)]
 pub struct UserAccountTableProps {
     pub accounts: Vec<UserAccountData>,
+    pub action_col_cb: Option<Callback<UserAccountData, Html>>,
 }
 
 /// Table showing many user names and balances
@@ -41,6 +42,7 @@ pub fn UserAccountTable(props: &UserAccountTableProps) -> Html {
                 <tr>
                     <th scope="col">{"Name"}</th>
                     <th scope="col">{"Balance"}</th>
+                    {if props.action_col_cb.is_some() {html!(<th scope="col">{"Actions"}</th>)} else {html!()}}
                 </tr>
             </thead>
 
@@ -49,6 +51,10 @@ pub fn UserAccountTable(props: &UserAccountTableProps) -> Html {
                     <tr>
                     <td>{&i.user_name}</td>
                     <td><MoneyDisplay money={i.balance} /></td>
+                    {if props.action_col_cb.is_some() {
+                        let html = props.action_col_cb.as_ref().unwrap().emit(i.clone());
+                        html!(<td>{html}</td>)
+                    } else {html!()}}
                     </tr>
                     )
                 )}
