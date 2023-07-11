@@ -194,15 +194,20 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         .performance()
         .expect("performance should be available");
 
-    let repress_delay = 3000.0;
+    let repress_delay = 1000.0;
 
     let arena_is_open = matches!(props.state, JapaneseAuctionBidState::EnterArena { .. });
+    let me_in_arena = props
+        .state
+        .get_arena()
+        .iter()
+        .any(|i| props.my_user_id == i.id);
     let locked_out_of_arena = match &props.state {
         JapaneseAuctionBidState::EnterArena { .. } => false, // If arena is open, we are not locked out
         JapaneseAuctionBidState::ClockRunning {
             currently_in_arena, ..
         } => {
-            currently_in_arena // If clock is running, we are locked out when we are not in the arena anymore
+            !currently_in_arena // If clock is running, we are locked out when we are not in the arena anymore
                 .iter()
                 .any(|i| i.id == props.my_user_id)
         }
@@ -222,32 +227,25 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         changed_recently.set(false);
         changed_at.set(performance.now());
 
-        // If the arena is currently open, the change can be immediately sent
-        if arena_is_open {
-            let action = if *pressed {
-                JapaneseAuctionAction::EnterArena
-            } else {
-                JapaneseAuctionAction::ExitArena
-            };
+        // If the arena is currently open, and we're pressing the button, and we're not in the arena,
+        // the change should be sent immediately.
+        // If it's a button release (of any kind), then we should only send it after a delay.
+        if arena_is_open && *pressed && !me_in_arena {
             props
                 .send
                 .emit(encode(&UserClientMessage::JapaneseAuctionAction {
                     item_id: props.item_id,
-                    action,
+                    action: JapaneseAuctionAction::EnterArena,
                 }));
-        } else {
-            // If the arena is closed, we can only ever send an ExitArena.
-            // Also, we should only do this if we are in the arena now,
-            // and after a delay.
-        }
+        };
     }
 
     // If the button is released, and it has been released for more than the timeout,
-    // and we are still not locked out of the arena, then we want to exit the arena.
+    // and we are still in the arena, then we want to exit the arena.
     // The loop will stop as soon as the server recognizes our exit.
-    if !arena_is_open & !*pressed
+    if !*pressed
         && (performance.now() - *changed_at) > repress_delay
-        && !locked_out_of_arena
+        && me_in_arena
         && !*changed_recently
     {
         props
@@ -300,20 +298,14 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         })
     };
 
-    // If the arena is open, then the button's color directly indicates the press state.
-    let pb_style = if arena_is_open {
-        format!(
-            "height: 100%; width: 100%; background-color: var(--bs-{}); border-radius: inherit;",
-            if *pressed { "success" } else { "danger" }
-        )
-    } else if locked_out_of_arena {
+    let pb_style = if locked_out_of_arena {
         // If we are locked out, show a mild danger color, indicating nothing to do.
         String::from("height: 100%; width: 100%; background-color: var(--bs-danger-bg-subtle); border-radius: inherit;")
     } else if *pressed {
         // If we are still pressing, show a success color.
         String::from("height: 100%; width: 100%; background-color: var(--bs-success); border-radius: inherit;")
-    } else {
-        // If we are not pressing, but not yet locked out, show a success color, but the box is shrinking relative to how much time is left.
+    } else if me_in_arena {
+        // If we are not pressing, but still in the arena, show a success color, but the box is shrinking relative to how much time is left.
         // The box below this one has a danger color, so it'll be filling up with the danger color.
         let time_until_quit = performance.now() - *changed_at;
         let fraction_remaining = 1.0 - (time_until_quit / repress_delay);
@@ -321,16 +313,12 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             "width: 100%; height: {:.1}%; background-color: var(--bs-success); border-radius: inherit;",
             fraction_remaining * 100.0
         )
+    } else {
+        // If we are not pressing, and also not in the arena, then show a danger color.
+        String::from("height: 100%; width: 100%; background-color: var(--bs-danger); border-radius: inherit;")
     };
 
-    let currently_in_arena = match &props.state {
-        JapaneseAuctionBidState::EnterArena {
-            currently_in_arena, ..
-        } => currently_in_arena,
-        JapaneseAuctionBidState::ClockRunning {
-            currently_in_arena, ..
-        } => currently_in_arena,
-    };
+    let currently_in_arena = props.state.get_arena();
 
     let header_line = match &props.state {
         JapaneseAuctionBidState::EnterArena {
@@ -361,7 +349,7 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
 
             <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                 <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                <UserAccountTable accounts={currently_in_arena.clone()} />
+                <UserAccountTable accounts={currently_in_arena.to_vec()} />
             </div>
         </VerticalStack>
     }

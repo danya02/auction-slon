@@ -97,3 +97,16 @@ pub enum JapaneseAuctionBidState {
         current_price: Money,
     },
 }
+
+impl JapaneseAuctionBidState {
+    pub fn get_arena(&self) -> &[UserAccountData] {
+        match self {
+            JapaneseAuctionBidState::EnterArena {
+                currently_in_arena, ..
+            } => &currently_in_arena,
+            JapaneseAuctionBidState::ClockRunning {
+                currently_in_arena, ..
+            } => &currently_in_arena,
+        }
+    }
+}

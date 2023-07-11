@@ -650,6 +650,17 @@ async fn run_japanese_auction(
                 .is_zero()
         {
             arena_is_closed = true;
+            // Also, tell the system about this
+            let bid_state = JapaneseAuctionBidState::ClockRunning {
+                currently_in_arena: arena.clone(),
+                current_price,
+            };
+            state_tx
+                .send(AuctionState::Bidding(BiddingState {
+                    item: item.clone(),
+                    active_bid: ActiveBidState::JapaneseAuctionBid(bid_state),
+                }))
+                .await?;
         }
 
         run_sold_check(
@@ -736,6 +747,7 @@ async fn run_japanese_auction(
             _ = update_interval.tick() => {
                 // Publish the current state (price, mode and arena members)
                 // ONLY IF the arena is currently open -> arena closing timer is counting down
+                // (if the arena is closed, this is handled in the price_increase_interval tick, where we send a message on every price change)
                 if !arena_is_closed {
                     let bid_state = JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32() };
                     state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
