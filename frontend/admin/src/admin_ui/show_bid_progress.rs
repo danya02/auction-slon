@@ -62,15 +62,47 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                     html!(<button class="btn btn-danger" onclick={kick_press_cb}>{"Kick from arena"}</button>)
                 })
             };
+
+            let current_clock_rate = state.get_price_increase_rate();
+
+            // These two callbacks change the clock rate
+            let clock_rate_up_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    let new_clock_rate = current_clock_rate + 5;
+                    send.emit(AdminClientMessage::SetJapaneseClockRate(new_clock_rate));
+                })
+            };
+            let clock_rate_down_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    let new_clock_rate = current_clock_rate - 5;
+                    send.emit(AdminClientMessage::SetJapaneseClockRate(new_clock_rate));
+                })
+            };
+
             match state {
                 JapaneseAuctionBidState::EnterArena {
                     currently_in_arena,
                     seconds_until_arena_closes,
+                    current_price,
+                    current_price_increase_per_100_seconds,
                 } => {
                     html! {
                         <>
                             <h1>{"Arena is now open"}</h1>
                             <p>{"Arena closes in: "}{seconds_until_arena_closes}</p>
+                            <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                            <p>
+                                {"Current price increase rate: +"}
+                                <MoneyDisplay money={current_price_increase_per_100_seconds}/>
+                                {"/100 seconds"}
+                                <button class="btn btn-danger" onclick={clock_rate_down_cb}>{"-"}</button>
+                                <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
+                            </p>
+
                             <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
                                 <h3>{currently_in_arena.len()}{" members in arena"}</h3>
                                 <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
@@ -81,10 +113,20 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 JapaneseAuctionBidState::ClockRunning {
                     currently_in_arena,
                     current_price,
+                    current_price_increase_per_100_seconds,
                 } => html! {
                     <>
                         <h1>{"Arena is now closed"}</h1>
                         <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+
+                        <p>
+                            {"Current price increase rate: +"}
+                            <MoneyDisplay money={current_price_increase_per_100_seconds}/>
+                            {"/100 seconds"}
+                            <button class="btn btn-danger" onclick={clock_rate_down_cb}>{"-"}</button>
+                            <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
+                        </p>
+
                         <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                             <h3>{currently_in_arena.len()}{" members in arena"}</h3>
                             <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />

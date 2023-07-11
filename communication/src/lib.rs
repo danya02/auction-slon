@@ -102,6 +102,10 @@ pub enum AdminClientMessage {
 
     /// If a Japanese auction is running, remove a user from the arena, if they are there.
     KickFromJapaneseAuction(i64, i64),
+
+    /// If a Japanese auction is running, change its clock rate.
+    /// The clock rate is how much money the price increases per 100 seconds.
+    SetJapaneseClockRate(Money),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -86,15 +86,16 @@ pub enum JapaneseAuctionBidState {
     /// The buyers are entering the arena
     EnterArena {
         currently_in_arena: Vec<UserAccountData>,
-
+        current_price: Money,
+        current_price_increase_per_100_seconds: Money,
         seconds_until_arena_closes: f32,
     },
 
     /// The buyers can now exit the arena; last person standing wins the item
     ClockRunning {
         currently_in_arena: Vec<UserAccountData>,
-
         current_price: Money,
+        current_price_increase_per_100_seconds: Money,
     },
 }
 
@@ -107,6 +108,19 @@ impl JapaneseAuctionBidState {
             JapaneseAuctionBidState::ClockRunning {
                 currently_in_arena, ..
             } => currently_in_arena,
+        }
+    }
+
+    pub fn get_price_increase_rate(&self) -> Money {
+        *match self {
+            JapaneseAuctionBidState::EnterArena {
+                current_price_increase_per_100_seconds,
+                ..
+            } => current_price_increase_per_100_seconds,
+            JapaneseAuctionBidState::ClockRunning {
+                current_price_increase_per_100_seconds,
+                ..
+            } => current_price_increase_per_100_seconds,
         }
     }
 }
