@@ -204,8 +204,7 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         } => {
             currently_in_arena // If clock is running, we are locked out when we are not in the arena anymore
                 .iter()
-                .find(|i| i.id == props.my_user_id)
-                .is_none()
+                .any(|i| i.id == props.my_user_id)
         }
     };
 
@@ -292,7 +291,7 @@ fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
 
     let uptouch = {
         let pressed = pressed.clone();
-        let changed_recently = changed_recently.clone();
+        //let changed_recently = changed_recently.clone();
 
         Callback::from(move |e: TouchEvent| {
             e.prevent_default();

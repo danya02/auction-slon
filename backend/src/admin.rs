@@ -67,6 +67,8 @@ pub async fn handle_socket(
                                     AdminClientMessage::PrepareAuctioning(item_id) => sync_handle.send_event(AuctionEvent::PrepareAuctioning(item_id)).await,
                                     AdminClientMessage::RunEnglishAuction(item_id) => sync_handle.send_event(AuctionEvent::RunEnglishAuction(item_id)).await,
                                     AdminClientMessage::RunJapaneseAuction(item_id) => sync_handle.send_event(AuctionEvent::RunJapaneseAuction(item_id)).await,
+                                    AdminClientMessage::FinishAuction => sync_handle.send_event(AuctionEvent::FinishAuction).await,
+                                    AdminClientMessage::StartAuctionAnew => sync_handle.send_event(AuctionEvent::StartAuctionAnew).await,
                                 }
                             },
                             _ => {},

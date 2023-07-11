@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use axum::extract::ws::{close_code, Message, WebSocket};
 
 use communication::{
     auction::state::AuctionState, decode, encode, ServerMessage, UserClientMessage,
 };
+use tokio::time::interval;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -21,7 +24,7 @@ pub async fn handle_socket(
     mut sync_handle: AuctionSyncHandle,
 ) -> anyhow::Result<()> {
     info!("Client connected as user with key {key:?}");
-    let user = match sync_handle.get_member_by_key(key).await {
+    let mut user = match sync_handle.get_member_by_key(key).await {
         None => {
             error!("Key does not match set user password");
             close_socket(
@@ -35,10 +38,9 @@ pub async fn handle_socket(
         Some(user) => user,
     };
 
-    // Now, give the user the current info on who they are, other members of the auction, and the auction's state.
-    send!(socket, ServerMessage::YourAccount(user.clone()));
-    let members = sync_handle.auction_members.borrow().clone();
-    send!(socket, ServerMessage::AuctionMembers(members));
+    // Now, we will give the user the current info on who they are, other members of the auction, and the auction's state,
+    // when this interval first ticks (which should be immediate).
+    let mut refresh_interval = interval(Duration::from_secs(5)); // tune this so that the user does not spend too long with outdated info
 
     loop {
         tokio::select! {
@@ -87,6 +89,44 @@ pub async fn handle_socket(
                     other => other
                 };
                 send!(socket, ServerMessage::AuctionState(latest_state));
+            },
+
+            _ = refresh_interval.tick() => {
+                user = match sync_handle.get_member_by_id(user.id).await {
+                    None => {
+                        error!("User ID disappeared while program was running");
+                        close_socket(
+                            socket,
+                            close_code::ERROR,
+                            "User ID disappeared while program was running",
+                        )
+                        .await;
+                        return Ok(());
+                    }
+                    Some(user) => user,
+                };
+
+                send!(socket, ServerMessage::YourAccount(user.clone()));
+                let members = sync_handle.auction_members.borrow().clone();
+                send!(socket, ServerMessage::AuctionMembers(members));
+
+                // Also resend the auction state, just in case it were lost.
+                // This is copy-pasted from the case above when the auction state changes
+                let latest_state = sync_handle.auction_state.borrow().clone();
+                // Map SoldToMember to SoldToYou or SoldToSomeoneElse
+                let latest_state = match latest_state {
+                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code } => {
+                        if sold_to.id == user.id {
+                            AuctionState::SoldToYou { item, sold_for, confirmation_code }
+                        } else {
+                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for }
+                        }
+                    },
+                    other => other
+                };
+                send!(socket, ServerMessage::AuctionState(latest_state));
+
+
             },
         }
     }

@@ -1,4 +1,7 @@
-use common::layout::{Container, VerticalStack};
+use common::{
+    components::AuctionReportView,
+    layout::{Container, VerticalStack},
+};
 use communication::{auction::state::AuctionState, AdminClientMessage, ItemState};
 use yew::prelude::*;
 
@@ -27,6 +30,11 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
         let send = props.send.clone();
         Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuction))
     };
+    let start_auction_anew_cb = {
+        let send = props.send.clone();
+        Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuctionAnew))
+    };
+
     let content = match &props.auction_state {
         AuctionState::WaitingForAuction => html! {
             <VerticalStack>
@@ -34,19 +42,30 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
                 <button class="btn btn-success" onclick={start_auction_cb}>{"Begin auction"}</button>
             </VerticalStack>
         },
-        AuctionState::AuctionOver => html! {
+        AuctionState::AuctionOver(report) => html! {
             <VerticalStack>
                 <h1>{"Auction has now been concluded"}</h1>
-                <button class="btn btn-success" onclick={start_auction_cb}>{"Begin auction"}</button>
+                <AuctionReportView report={report.clone()} />
+                <button class="btn btn-success" onclick={start_auction_anew_cb}>{"Return to start of auction"}</button>
             </VerticalStack>
         },
 
-        AuctionState::WaitingForItem => html! {
-            <VerticalStack>
-                <h1>{"Please choose an item to auction off next"}</h1>
-                <ChooseItemToSell send={props.send.clone()} items={props.items.clone()} />
-            </VerticalStack>
-        },
+        AuctionState::WaitingForItem => {
+            let conclude_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::FinishAuction);
+                })
+            };
+            html! {
+                <VerticalStack>
+                    <h1>{"Please choose an item to auction off next"}</h1>
+                    <ChooseItemToSell send={props.send.clone()} items={props.items.clone()} />
+                    <button class="btn btn-danger" onclick={conclude_cb}>{"Conclude auction"}</button>
+                </VerticalStack>
+            }
+        }
 
         AuctionState::ShowingItemBeforeBidding(item) => {
             html!(<ConfirmItemToSell item={item.clone()} send={props.send.clone()} />)
@@ -107,7 +126,7 @@ fn AdminUiTabs(props: &AdminUiTabsProps) -> Html {
                 </li>
 
                 <li class="nav-item">
-                    <a class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::AuctionOver) {Some("active")} else {None})}>{"Auction is now concluded"}</a>
+                    <a class={classes!("nav-link", "disabled", if matches!(props.state, AuctionState::AuctionOver(_)) {Some("active")} else {None})}>{"Auction is now concluded"}</a>
                 </li>
             </ul>
         </nav>

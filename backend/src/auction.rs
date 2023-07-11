@@ -3,7 +3,10 @@ use std::{sync::Arc, time::Duration};
 use communication::{
     auction::{
         actions::JapaneseAuctionAction,
-        state::{ActiveBidState, AuctionItem, AuctionState, BiddingState, JapaneseAuctionBidState},
+        state::{
+            ActiveBidState, AuctionItem, AuctionReport, AuctionState, BiddingState,
+            JapaneseAuctionBidState,
+        },
     },
     ItemState, ItemStateValue, Money, UserAccountData,
 };
@@ -24,6 +27,10 @@ pub struct AuctionSyncHandle {
     /// Allows fetching member by their login key.
     /// Send in the login key, and a oneshot sender to get back the account data.
     get_member_by_key: mpsc::Sender<(String, oneshot::Sender<Option<UserAccountData>>)>,
+
+    /// Allows getting a member by their ID.
+    /// Send in the ID, and a oneshot sender to get back the account data.
+    get_member_by_id: mpsc::Sender<(i64, oneshot::Sender<Option<UserAccountData>>)>,
 
     /// Stores info on the current auction state.
     pub auction_state: watch::Receiver<AuctionState>,
@@ -50,6 +57,20 @@ impl AuctionSyncHandle {
             .expect("Manager closed without giving back member by key")
     }
 
+    /// Wrapper for the `get_member_by_key` process
+    pub async fn get_member_by_id(&self, id: i64) -> Option<UserAccountData> {
+        // Make a oneshot channel
+        let (tx, rx) = oneshot::channel();
+        // Send it to the manager
+        self.get_member_by_id
+            .send((id, tx))
+            .await
+            .expect("Manager closed without receiving command to get member");
+
+        rx.await
+            .expect("Manager closed without giving back member by ID")
+    }
+
     /// Send an AuctionEvent into the auction process.
     pub async fn send_event(&self, event: AuctionEvent) {
         self.auction_event_sender
@@ -67,11 +88,15 @@ impl AuctionSyncHandle {
         let (astx, asrx) = watch::channel(AuctionState::WaitingForAuction);
         let (isstx, issrx) = watch::channel(vec![]);
         let (gmbktx, gmbkrx) = mpsc::channel(100);
+        let (gmbitx, gmbirx) = mpsc::channel(100);
         let (aetx, aerx) = mpsc::channel(100);
-        tokio::spawn(auction_manager(pool, amtx, gmbkrx, astx, aerx, isstx));
+        tokio::spawn(auction_manager(
+            pool, amtx, gmbkrx, gmbirx, astx, aerx, isstx,
+        ));
         AuctionSyncHandle {
             auction_members: amrx,
             get_member_by_key: gmbktx,
+            get_member_by_id: gmbitx,
             auction_state: asrx,
             auction_event_sender: aetx,
             item_sale_states: issrx,
@@ -83,6 +108,7 @@ async fn auction_manager(
     pool: SqlitePool,
     mut auction_member_tx: watch::Sender<Vec<UserAccountData>>,
     mut get_member_by_key_rx: mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
+    mut get_member_by_id_rx: mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
     mut auction_state_tx: watch::Sender<AuctionState>,
     mut auction_event_rx: mpsc::Receiver<AuctionEvent>,
     mut item_sale_state_tx: watch::Sender<Vec<ItemState>>,
@@ -92,6 +118,7 @@ async fn auction_manager(
             &pool,
             &mut auction_member_tx,
             &mut get_member_by_key_rx,
+            &mut get_member_by_id_rx,
             &mut auction_state_tx,
             &mut auction_event_rx,
             &mut item_sale_state_tx,
@@ -136,12 +163,19 @@ pub enum AuctionEvent {
 
     /// A user has entered or exited the Japanese auction's arena.
     JapaneseAuctionAction(JapaneseAuctionEvent),
+
+    /// An admin has requested entering the "auction over" state
+    FinishAuction,
+
+    /// An admin has requested that the auction be started from the beginning.
+    StartAuctionAnew,
 }
 
 async fn auction_manager_inner(
     pool: &SqlitePool,
     auction_member_tx: &mut watch::Sender<Vec<UserAccountData>>,
     get_member_by_key_rx: &mut mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
+    get_member_by_id_rx: &mut mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
     auction_state_tx: &mut watch::Sender<AuctionState>,
     auction_event_rx: &mut mpsc::Receiver<AuctionEvent>,
     item_sale_state_tx: &mut watch::Sender<Vec<ItemState>>,
@@ -190,7 +224,6 @@ async fn auction_manager_inner(
                             None => ItemStateValue::Sellable,
                             Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
                         };
-                        // TODO: ItemStateValue::BeingSold
                         item_data.push(ItemState {item, state});
                     }
                     item_sale_state_tx.send_replace(item_data);
@@ -211,8 +244,14 @@ async fn auction_manager_inner(
             // === IPC ===
             Some((key, sender)) = get_member_by_key_rx.recv() => {
                 let user_row = query!("SELECT * FROM auction_user WHERE login_key=?", key).fetch_optional(pool).await?;
-                sender.send(user_row.map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32 })).ignore();
+                sender.send(user_row.map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as Money })).ignore();
             },
+
+            Some((id, sender)) = get_member_by_id_rx.recv() => {
+                let user_row = query!("SELECT * FROM auction_user WHERE id=?", id).fetch_optional(pool).await?;
+                sender.send(user_row.map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as Money })).ignore();
+            },
+
 
             Some(event) = auction_event_rx.recv() => {
                 debug!("Received auction event: {event:?}");
@@ -253,6 +292,45 @@ async fn auction_manager_inner(
                         // If there is no Japanese auction currently in progress, ignore this
                         if !matches!(current_auction, Japanese) { continue; }
                         japanese_tx.send(action).await?;
+                    },
+
+                    AuctionEvent::FinishAuction => {
+                        running_auction_handle.abort();
+                        current_auction = NoAuction;
+
+                        // Gather auction report
+                        // First, collect the latest user data
+                        // (which is redundant with the periodic data, but it's more convenient to have it here)
+                        let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
+                        let user_data = user_rows.into_iter().map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32 }).collect();
+
+                        // Then, collect the sale data
+                        let item_rows = query!(r#"
+                            SELECT
+                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
+                            FROM auction_item
+                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
+                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
+                            "#).fetch_all(pool).await?;
+                        let mut item_data = vec![];
+                        for row in item_rows {
+                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
+                            let state = match row.buyer_id {
+                                None => ItemStateValue::Sellable,
+                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
+                            };
+                            item_data.push(ItemState {item, state});
+                        }
+
+
+                        let report = AuctionReport { items: item_data, members: user_data };
+                        auction_state_tx.send_replace(AuctionState::AuctionOver(report));
+                    },
+
+                    AuctionEvent::StartAuctionAnew => {
+                        running_auction_handle.abort();
+                        current_auction = NoAuction;
+                        auction_state_tx.send_replace(AuctionState::WaitingForAuction);
                     },
                 }
             },

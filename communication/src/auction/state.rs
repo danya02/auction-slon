@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Money, UserAccountData};
+use crate::{ItemState, Money, UserAccountData};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum AuctionState {
@@ -8,7 +8,7 @@ pub enum AuctionState {
     WaitingForAuction,
 
     /// Auction is concluded
-    AuctionOver,
+    AuctionOver(AuctionReport),
 
     /// Waiting for an item to be submitted
     WaitingForItem,
@@ -47,6 +47,13 @@ pub struct AuctionItem {
     pub id: i64,
     pub name: String,
     pub initial_price: Money,
+}
+
+/// Structure representing the outcome of the auction, with the members' final balances and sales.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct AuctionReport {
+    pub members: Vec<UserAccountData>,
+    pub items: Vec<ItemState>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

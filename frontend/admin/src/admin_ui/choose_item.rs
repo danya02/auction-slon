@@ -27,9 +27,6 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
                     <a href="#" class="btn btn-primary stretched-link" onclick={start_selling_cb}>{"Sell this"}</a>
                 }
             }
-            communication::ItemStateValue::BeingSold => html! {
-                <a href="#" class="btn btn-secondary disabled">{"Already selling this"}</a>
-            },
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => html! {
                 <a href="#" class="btn btn-secondary disabled">{format!("Sold this to {} for ", buyer.user_name)}<MoneyDisplay money={sale_price} /></a>
             },

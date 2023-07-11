@@ -64,14 +64,20 @@ pub enum ItemStateValue {
     /// The item is available to be sold
     Sellable,
 
-    /// The item is the subject of the current sale
-    BeingSold,
-
     /// The item has been sold, and should not be sold again
     AlreadySold {
         buyer: UserAccountData,
         sale_price: Money,
     },
+}
+
+impl ItemStateValue {
+    pub fn get_sale_price(&self) -> Option<Money> {
+        match self {
+            ItemStateValue::Sellable => None,
+            ItemStateValue::AlreadySold { sale_price, .. } => Some(*sale_price),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -87,6 +93,12 @@ pub enum AdminClientMessage {
 
     /// Start auctioning an item according to the rules of a Japanese auction.
     RunJapaneseAuction(i64),
+
+    /// Set the auction to the "auction over" state.
+    FinishAuction,
+
+    /// Set the auction to the "preparing" state.
+    StartAuctionAnew,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

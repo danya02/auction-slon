@@ -1,7 +1,11 @@
 use communication::{auction::state::AuctionState, UserAccountData};
 use yew::prelude::*;
 
-use common::screens::fullscreen_message::FullscreenMsg;
+use common::{
+    components::AuctionReportView,
+    layout::{Container, VerticalStack},
+    screens::fullscreen_message::FullscreenMsg,
+};
 
 use crate::components::{
     bidding_screen::BiddingScreen,
@@ -23,8 +27,16 @@ pub fn AuctionView(props: &AuctionViewProps) -> Html {
         AuctionState::WaitingForAuction => {
             html!(<FullscreenMsg message="Waiting for auction to begin..." show_reload_button={true} user_account={props.account.clone()}/>)
         }
-        AuctionState::AuctionOver => {
-            html!(<FullscreenMsg message="Auction is now concluded" show_reload_button={false} user_account={props.account.clone()}/>)
+        AuctionState::AuctionOver(report) => {
+            html!(
+            <Container>
+                <VerticalStack>
+                    <h1>{"Auction has now been concluded"}</h1>
+                    <AuctionReportView report={report.clone()} highlight_user_id={Some(props.account.id)}/>
+                </VerticalStack>
+            </Container>
+
+            )
         }
         AuctionState::WaitingForItem => {
             html!(<FullscreenMsg message="Waiting for item to be presented..." show_reload_button={true} user_account={props.account.clone()}/>)
