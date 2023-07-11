@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use communication::{
     auction::state::{AuctionItem, AuctionReport, AuctionState},
@@ -35,11 +35,22 @@ pub struct AuctionSyncHandle {
 
     /// Stores info about the current state of item sales.
     pub item_sale_states: watch::Receiver<Vec<ItemState>>,
+
+    /// Holds handles to ask the connection tasks to quit because somebody else is connecting.
+    pub connection_drop_handles: Arc<Mutex<HashMap<i64, oneshot::Sender<()>>>>,
 }
 
 impl AuctionSyncHandle {
-    /// Wrapper for the `get_member_by_key` process
-    pub async fn get_member_by_key(&self, key: String) -> Option<UserAccountData> {
+    /// Wrapper for the `get_member_by_key` process.
+    ///
+    /// If the user exists, it also returns a future
+    /// that will resolve if `get_member_by_key` is called again with the same key.
+    /// The user connection thread should use that as a signal to terminate the connection,
+    /// to avoid race conditions between the two connections.
+    pub async fn get_member_by_key(
+        &self,
+        key: String,
+    ) -> Option<(UserAccountData, oneshot::Receiver<()>)> {
         // Make a oneshot channel
         let (tx, rx) = oneshot::channel();
         // Send it to the manager
@@ -48,8 +59,25 @@ impl AuctionSyncHandle {
             .await
             .expect("Manager closed without receiving command to get member");
 
-        rx.await
-            .expect("Manager closed without giving back member by key")
+        let user = rx
+            .await
+            .expect("Manager closed without giving back member by key");
+        match user {
+            None => None,
+            Some(user_data) => {
+                // If we have a stored drop handle, call it.
+                let mut handles = self.connection_drop_handles.lock().await;
+                if let Some(sender) = handles.remove(&user_data.id) {
+                    sender.send(()).ignore();
+                }
+
+                // Put a new handle into the drop handles.
+                let (drop_tx, drop_rx) = oneshot::channel();
+                handles.insert(user_data.id, drop_tx);
+
+                Some((user_data, drop_rx))
+            }
+        }
     }
 
     /// Wrapper for the `get_member_by_key` process
@@ -95,6 +123,7 @@ impl AuctionSyncHandle {
             auction_state: asrx,
             auction_event_sender: aetx,
             item_sale_states: issrx,
+            connection_drop_handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

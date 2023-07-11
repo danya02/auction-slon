@@ -24,7 +24,7 @@ pub async fn handle_socket(
     mut sync_handle: AuctionSyncHandle,
 ) -> anyhow::Result<()> {
     info!("Client connected as user with key {key:?}");
-    let mut user = match sync_handle.get_member_by_key(key).await {
+    let (mut user, mut disconnect_handle) = match sync_handle.get_member_by_key(key).await {
         None => {
             error!("Key does not match set user password");
             close_socket(
@@ -44,6 +44,16 @@ pub async fn handle_socket(
 
     loop {
         tokio::select! {
+            Ok(_) = &mut disconnect_handle => {
+                close_socket(
+                    socket,
+                    close_code::POLICY,
+                    "Your login key was used to login from a different device. You can only be logged in from one device at a time",
+                )
+                .await;
+                return Ok(());
+            },
+
             maybe_packet = socket.recv() => {
                 match maybe_packet {
                     None => return Ok(()), // connection closed
