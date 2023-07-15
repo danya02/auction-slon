@@ -8,11 +8,21 @@ pub struct PlainChildrenProps {
     pub class: Classes,
 }
 
-/// Wrap the items in a Bootstrap container class
+/// Wrap the items in a Bootstrap container class,
+/// and put them in the center of the screen,
+/// unless they are big enough to scroll.
 #[function_component]
 pub fn Container(props: &PlainChildrenProps) -> Html {
     html! {
-        <div class={classes!("container-fluid", props.class.clone())} style="height: 100vh;">
+        // https://stackoverflow.com/a/65491575/5936187
+        <div
+            class={classes!("container-fluid", props.class.clone())}
+            style="display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          height: auto;
+          flex-direction: column;">
             { for props.children.iter() }
         </div>
     }

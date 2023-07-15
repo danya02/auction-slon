@@ -40,11 +40,11 @@ pub fn ConfirmItemToSell(props: &ConfirmItemProps) -> Html {
         <>
         <h1>{"You are about to start selling:"}</h1>
         <ItemDisplay item={item.clone()} />
-        <div class="d-grid gap-2 col-6 mx-auto">
+        <div class="d-flex gap-2 justify-content-center mb-3">
             <button class="btn btn-primary" type="button" onclick={start_as_english_cb}>{"Sell with English auction"}</button>
             <button class="btn btn-success" type="button" onclick={start_as_japanese_cb}>{"Sell with Japanese auction"}</button>
         </div>
-        <div class="d-grid gap-2 col-12 mx-auto">
+        <div class="d-grid gap-2 col-6 mx-auto mb-3">
             <button class="btn btn-danger" type="button" onclick={reset_cb}>{"Do not sell this now"}</button>
         </div>
         </>
