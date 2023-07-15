@@ -39,6 +39,31 @@ pub struct UserAccountData {
     pub balance: Money,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct UserAccountDataWithSecrets {
+    pub id: i64,
+    pub user_name: String,
+    pub balance: Money,
+    pub login_key: String,
+}
+
+impl From<UserAccountDataWithSecrets> for UserAccountData {
+    fn from(value: UserAccountDataWithSecrets) -> Self {
+        #[allow(unused_variables)]
+        let UserAccountDataWithSecrets {
+            id,
+            user_name,
+            balance,
+            login_key,
+        } = value;
+        UserAccountData {
+            id,
+            user_name,
+            balance,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ServerMessage {
     YourAccount(UserAccountData),
@@ -48,7 +73,7 @@ pub enum ServerMessage {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum AdminServerMessage {
-    AuctionMembers(Vec<UserAccountData>),
+    AuctionMembers(Vec<UserAccountDataWithSecrets>),
     AuctionState(AuctionState),
     ItemStates(Vec<ItemState>),
 }
@@ -106,6 +131,18 @@ pub enum AdminClientMessage {
     /// If a Japanese auction is running, change its clock rate.
     /// The clock rate is how much money the price increases per 100 seconds.
     SetJapaneseClockRate(Money),
+
+    /// Change a user's name
+    ChangeUserName { id: i64, new_name: String },
+
+    /// Change a user's balance. If the balance cannot be parsed as a money value, ignore this.
+    ChangeUserBalance { id: i64, new_balance: String },
+
+    /// Create a user by name
+    CreateUser { name: String },
+
+    /// Delete a user by ID
+    DeleteUser { id: i64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

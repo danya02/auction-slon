@@ -2,11 +2,12 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use communication::{
     auction::state::{AuctionItem, AuctionReport, AuctionState},
-    ItemState, ItemStateValue, Money, UserAccountData,
+    ItemState, ItemStateValue, Money, UserAccountData, UserAccountDataWithSecrets,
 };
+use rand::prelude::*;
 use sqlx::{query, SqlitePool};
 use tokio::sync::*;
-use tracing::debug;
+use tracing::{debug, warn};
 
 mod english;
 mod japanese;
@@ -17,7 +18,7 @@ pub use japanese::*;
 #[derive(Clone, Debug)]
 pub struct AuctionSyncHandle {
     /// Stores info on the current set of auction members.
-    pub auction_members: watch::Receiver<Vec<UserAccountData>>,
+    pub auction_members: watch::Receiver<Vec<UserAccountDataWithSecrets>>,
 
     /// Allows fetching member by their login key.
     /// Send in the login key, and a oneshot sender to get back the account data.
@@ -130,7 +131,7 @@ impl AuctionSyncHandle {
 
 async fn auction_manager(
     pool: SqlitePool,
-    mut auction_member_tx: watch::Sender<Vec<UserAccountData>>,
+    mut auction_member_tx: watch::Sender<Vec<UserAccountDataWithSecrets>>,
     mut get_member_by_key_rx: mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
     mut get_member_by_id_rx: mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
     mut auction_state_tx: watch::Sender<AuctionState>,
@@ -193,11 +194,22 @@ pub enum AuctionEvent {
 
     /// An admin has requested that the auction be started from the beginning.
     StartAuctionAnew,
+
+    /// An admin has requested that a user be changed, created or deleted.
+    ///
+    /// If id is None, create.
+    /// If id is Some, but name and balance is None, delete.
+    /// If id is Some, and name or balance is Some, change.
+    EditUser {
+        id: Option<i64>,
+        name: Option<String>,
+        balance: Option<Money>,
+    },
 }
 
 async fn auction_manager_inner(
     pool: &SqlitePool,
-    auction_member_tx: &mut watch::Sender<Vec<UserAccountData>>,
+    auction_member_tx: &mut watch::Sender<Vec<UserAccountDataWithSecrets>>,
     get_member_by_key_rx: &mut mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
     get_member_by_id_rx: &mut mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
     auction_state_tx: &mut watch::Sender<AuctionState>,
@@ -258,7 +270,7 @@ async fn auction_manager_inner(
                 let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
                 let mut user_data = vec![];
                 for row in user_rows {
-                    user_data.push(UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32 });
+                    user_data.push(UserAccountDataWithSecrets { id: row.id, user_name: row.name, balance: row.balance as u32, login_key: row.login_key });
                 }
                 auction_member_tx.send_replace(user_data.clone());
             },
@@ -355,6 +367,53 @@ async fn auction_manager_inner(
                         running_auction_handle.abort();
                         current_auction = NoAuction;
                         auction_state_tx.send_replace(AuctionState::WaitingForAuction);
+                    },
+
+                    AuctionEvent::EditUser {id, name, balance} => {
+                        match id {
+                            None => {
+                                // Creating user
+                                if (&name, balance) == (&None, None) {
+                                    warn!("Received AuctionEvent::EditUser with all empty fields -- bug?");
+                                    continue;
+                                } else {
+                                    let mut login_key = String::new();
+                                    {
+                                        let mut rng = rand::thread_rng();
+                                        for _ in 0..8 {
+                                            let num = rng.gen_range(0..=9);
+                                            login_key.extend(num.to_string().chars());
+                                        }
+                                    }
+                                    let name = if let Some(name) = name {
+                                        if name.trim().is_empty() {None} else {Some(name.trim().to_string())}
+                                    } else {None};
+                                    let name = name.or(Some("Unnamed".to_string())).unwrap();
+                                    let balance = balance.or(Some(0)).unwrap();
+                                    query!(
+                                        "INSERT INTO auction_user (name, balance, login_key) VALUES (?,?,?)",
+                                        name,
+                                        balance,
+                                        login_key,
+                                    ).execute(pool).await?;
+                                }
+                            },
+                            Some(id) => {
+                                // Changing or deleting user
+                                if (&name, balance) == (&None, None) {
+                                    query!("DELETE FROM auction_user WHERE id=?", id).execute(pool).await?;
+                                } else {
+                                    let mut tx = pool.begin().await?;
+                                    if let Some(name) = name {
+                                        query!("UPDATE auction_user SET name=? WHERE id=?", name, id).execute(&mut tx).await?;
+                                    }
+                                    if let Some(balance) = balance {
+                                        query!("UPDATE auction_user SET balance=? WHERE id=?", balance, id).execute(&mut tx).await?;
+                                    }
+                                    tx.commit().await?;
+                                }
+                            },
+                        }
                     },
                 }
             },

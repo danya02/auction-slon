@@ -1,11 +1,11 @@
 -- Add migration script here
-CREATE TABLE auction_item (
+CREATE TABLE IF NOT EXISTS auction_item (
     id INTEGER PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     initial_price INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE auction_item_sale (
+CREATE TABLE IF NOT EXISTS auction_item_sale (
     item_id INTEGER UNIQUE NOT NULL,
     buyer_id INTEGER NOT NULL,
     sale_price INTEGER NOT NULL,

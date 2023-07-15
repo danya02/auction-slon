@@ -2,7 +2,9 @@ use common::{
     components::AuctionReportView,
     layout::{Container, VerticalStack},
 };
-use communication::{auction::state::AuctionState, AdminClientMessage, ItemState};
+use communication::{
+    auction::state::AuctionState, AdminClientMessage, ItemState, UserAccountDataWithSecrets,
+};
 use yew::prelude::*;
 
 use crate::admin_ui::{
@@ -13,11 +15,13 @@ use crate::admin_ui::{
 mod choose_item;
 mod confirm_item;
 mod item_sold;
+mod setup;
 mod show_bid_progress;
 
 #[derive(Properties, PartialEq)]
 pub struct AdminUiProps {
     pub auction_state: AuctionState,
+    pub users: Vec<UserAccountDataWithSecrets>,
     pub items: Vec<ItemState>,
     pub send: SendToServer,
 }
@@ -39,6 +43,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
         AuctionState::WaitingForAuction => html! {
             <VerticalStack>
                 <h1>{"Auction is not yet started"}</h1>
+                <setup::SetupAuction send={props.send.clone()} users={props.users.clone()} items={props.items.clone()} />
                 <button class="btn btn-success" onclick={start_auction_cb}>{"Begin auction"}</button>
             </VerticalStack>
         },

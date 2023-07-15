@@ -2,6 +2,8 @@ use communication::{
     auction::state::{AuctionItem, AuctionReport},
     Money, UserAccountData,
 };
+use wasm_bindgen::{JsCast, UnwrapThrowExt};
+use web_sys::HtmlInputElement;
 use yew::{prelude::*, virtual_dom::VNode};
 
 #[derive(Properties, PartialEq)]
@@ -271,4 +273,134 @@ pub fn AuctionReportView(props: &AuctionReportViewProps) -> Html {
             {info_table}
         </div>
     }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct TextInputProps {
+    /// When this changes, the input is cleared and replaced with this,
+    /// and the dirty flag is cleared.
+    pub prefill_value: AttrValue,
+
+    /// This is called when an input is completed (onchange event).
+    /// Not called for each keystroke (oninput).
+    /// Also, the dirty flag isn't cleared when this is called.
+    pub onchange: Callback<String>,
+}
+
+#[function_component]
+pub fn TextInput(props: &TextInputProps) -> Html {
+    let current_value = use_state(|| props.prefill_value.to_string());
+    let is_dirty = use_state(|| false);
+
+    {
+        let current_value = current_value.clone();
+        let is_dirty = is_dirty.clone();
+        use_effect_with_deps(
+            move |new_value| {
+                current_value.set(new_value.to_string());
+                is_dirty.set(false);
+            },
+            props.prefill_value.clone(),
+        );
+    }
+
+    let oninput = {
+        let is_dirty = is_dirty.clone();
+        let current_value = current_value.clone();
+        Callback::from(move |e: InputEvent| {
+            let event: Event = e.dyn_into().unwrap_throw();
+            let event_target = event.target().unwrap_throw();
+            let target: HtmlInputElement = event_target.dyn_into().unwrap_throw();
+            current_value.set(target.value());
+            is_dirty.set(true);
+        })
+    };
+
+    let onchange = {
+        let onchange = props.onchange.clone();
+        let current_value = current_value.clone();
+
+        let is_dirty = is_dirty.clone();
+        Callback::from(move |_e: Event| {
+            onchange.emit((*current_value).clone());
+            is_dirty.set(false);
+        })
+    };
+    html!(
+        <input
+            type="text" value={(*current_value).clone()}
+            class={classes!("form-control", is_dirty.then_some("border-warning"))}
+            {onchange}
+            {oninput} />
+    )
+}
+
+#[derive(Properties, PartialEq)]
+pub struct NumberInputProps {
+    /// When this changes, the input is cleared and replaced with this,
+    /// and the dirty flag is cleared.
+    pub prefill_value: AttrValue,
+
+    /// This is called when an input is completed (onchange event).
+    /// Not called for each keystroke (oninput).
+    /// Also, the dirty flag isn't cleared when this is called.
+    pub onchange: Callback<String>,
+
+    /// Minimum number value
+    pub min: AttrValue,
+
+    /// Maximum number value
+    pub max: AttrValue,
+
+    /// Number step value
+    pub step: AttrValue,
+}
+
+#[function_component]
+pub fn NumberInput(props: &NumberInputProps) -> Html {
+    let current_value = use_state(|| props.prefill_value.to_string());
+    let is_dirty = use_state(|| false);
+
+    {
+        let current_value = current_value.clone();
+        let is_dirty = is_dirty.clone();
+        use_effect_with_deps(
+            move |new_value| {
+                current_value.set(new_value.to_string());
+                is_dirty.set(false);
+            },
+            props.prefill_value.clone(),
+        );
+    }
+
+    let oninput = {
+        let is_dirty = is_dirty.clone();
+        let current_value = current_value.clone();
+        Callback::from(move |e: InputEvent| {
+            let event: Event = e.dyn_into().unwrap_throw();
+            let event_target = event.target().unwrap_throw();
+            let target: HtmlInputElement = event_target.dyn_into().unwrap_throw();
+            current_value.set(target.value());
+            is_dirty.set(true);
+        })
+    };
+
+    let onchange = {
+        let onchange = props.onchange.clone();
+        let current_value = current_value.clone();
+
+        let is_dirty = is_dirty.clone();
+        Callback::from(move |_e: Event| {
+            onchange.emit((*current_value).clone());
+            is_dirty.set(false);
+        })
+    };
+
+    html!(
+        <input
+            type="number" value={(*current_value).clone()}
+            class={classes!("form-control", is_dirty.then_some("border-warning"))}
+            {onchange}
+            {oninput} />
+    )
 }

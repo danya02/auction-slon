@@ -100,6 +100,10 @@ pub async fn handle_socket(
                 };
                 send!(socket, ServerMessage::AuctionState(latest_state));
             },
+            _ = sync_handle.auction_members.changed() => {
+                let latest_state = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect();
+                send!(socket, ServerMessage::AuctionMembers(latest_state));
+            },
 
             _ = refresh_interval.tick() => {
                 user = match sync_handle.get_member_by_id(user.id).await {
@@ -117,7 +121,7 @@ pub async fn handle_socket(
                 };
 
                 send!(socket, ServerMessage::YourAccount(user.clone()));
-                let members = sync_handle.auction_members.borrow().clone();
+                let members = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect();
                 send!(socket, ServerMessage::AuctionMembers(members));
 
                 // Also resend the auction state, just in case it were lost.

@@ -87,12 +87,53 @@ pub async fn handle_socket(
                                             crate::auction::JapaneseAuctionEvent::NewPriceClockInterval { price_increase_per_100_seconds: new_rate }
                                         )
                                     ).await,
+                                    AdminClientMessage::ChangeUserName{id, new_name} => {
+                                        sync_handle.send_event(
+                                            AuctionEvent::EditUser { id: Some(id), name: Some(new_name), balance: None }
+                                        ).await;
+                                    },
+                                    AdminClientMessage::ChangeUserBalance{id, new_balance} => {
+                                        // Try parsing the provided value as a number.
+                                        // If that fails, ignore it.
+                                        let balance = Some(
+                                            match new_balance.parse() {
+                                                Ok(v) => v,
+                                                Err(_) => {
+                                                    warn!("Admin inputted invalid number: {new_balance}");
+                                                    // Send the latest user state immediately.
+                                                    {
+                                                        let members = sync_handle.auction_members.borrow().clone();
+                                                        send!(socket, AdminServerMessage::AuctionMembers(members));
+                                                    }
+                                                    continue;
+                                                },
+                                            }
+                                        );
+                                        sync_handle.send_event(
+                                            AuctionEvent::EditUser { id: Some(id), name: None, balance: balance }
+                                        ).await;
+                                    },
+                                    AdminClientMessage::CreateUser{name} => {
+                                        sync_handle.send_event(
+                                            AuctionEvent::EditUser { id: None, name: Some(name), balance: None }
+                                        ).await;
+                                    },
+                                    AdminClientMessage::DeleteUser{id} => {
+                                        sync_handle.send_event(
+                                            AuctionEvent::EditUser { id: Some(id), name: None, balance: None }
+                                        ).await;
+                                    },
+
                                 }
                             },
                             _ => {},
                         },
                     },
                 }
+            },
+            _ = sync_handle.auction_members.changed() => {
+                let latest_state = sync_handle.auction_members.borrow().clone();
+                send!(socket, AdminServerMessage::AuctionMembers(latest_state));
             },
             _ = sync_handle.auction_state.changed() => {
                 let latest_state = sync_handle.auction_state.borrow().clone();

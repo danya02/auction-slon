@@ -85,6 +85,7 @@ fn main_app() -> Html {
         let ws = ws.clone();
         //let auction_members = auction_members.clone();
         let auction_state = auction_state.clone();
+        let auction_members = auction_members.clone();
         let item_states = item_states.clone();
         // Receive message by depending on `ws.message_bytes`.
         use_effect_with_deps(
@@ -147,7 +148,7 @@ fn main_app() -> Html {
             // We need to have the auction info before continuing
             match (&*auction_state,) {
                 (Some(state),) => {
-                    html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} items={item_states.current().clone()}/>)
+                    html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} items={item_states.current().clone()} users={auction_members.current().clone()}/>)
                 }
                 _ => {
                     html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />)
