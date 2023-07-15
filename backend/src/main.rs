@@ -38,9 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let pool = SqlitePool::connect(&pool_url).await?;
     sqlx::migrate!().run(&pool).await?;
 
-    // If there are no users, and we are in a debug build,
-    // create test data.
-    #[cfg(debug_assertions)]
+    // If there are no users, create test data.
     {
         if sqlx::query!("SELECT * FROM auction_user LIMIT 1")
             .fetch_optional(&pool)
@@ -51,6 +49,27 @@ async fn main() -> anyhow::Result<()> {
             make_test_data(&pool).await?;
         }
     }
+
+    // This future will will listen for a termination signal,
+    // and then close the pool.
+    // This is needed to ensure that data gets written out to disk.
+    let termination_fut = {
+        let pool = pool.clone();
+        async move {
+            let mut sigterm_stream =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+            // Wait for whichever of these comes first.
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = sigterm_stream.recv() => {},
+            }
+
+            info!("Shutting down application due to signal!");
+
+            pool.close().await;
+            pool.close_event().await;
+        }
+    };
 
     let sync_handle = AuctionSyncHandle::new(pool).await;
 
@@ -70,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
+        .with_graceful_shutdown(termination_fut)
         .await
         .unwrap();
 

@@ -123,7 +123,37 @@ pub async fn handle_socket(
                                             AuctionEvent::EditUser { id: Some(id), name: None, balance: None }
                                         ).await;
                                     },
-
+                                    AdminClientMessage::ClearSaleStatus{id} => sync_handle.send_event(AuctionEvent::ClearSaleStatus{id}).await,
+                                    AdminClientMessage::ChangeItemName{id, new_name} => sync_handle.send_event(
+                                        AuctionEvent::EditItem {id: Some(id), name: Some(new_name), initial_price: None},
+                                    ).await,
+                                    AdminClientMessage::ChangeItemInitialPrice{id, new_price} => {
+                                        // Try parsing the provided value as a number.
+                                        // If that fails, ignore it.
+                                        let price = Some(
+                                            match new_price.parse() {
+                                                Ok(v) => v,
+                                                Err(_) => {
+                                                    warn!("Admin inputted invalid number: {new_price}");
+                                                    // Send the latest user state immediately.
+                                                    {
+                                                        let items = sync_handle.item_sale_states.borrow().clone();
+                                                        send!(socket, AdminServerMessage::ItemStates(items));
+                                                    }
+                                                    continue;
+                                                },
+                                            }
+                                        );
+                                        sync_handle.send_event(
+                                            AuctionEvent::EditItem {id: Some(id), name: None, initial_price: price},
+                                        ).await;
+                                    },
+                                    AdminClientMessage::DeleteItem{id} => sync_handle.send_event(
+                                            AuctionEvent::EditItem {id: Some(id), name: None, initial_price: None},
+                                    ).await,
+                                    AdminClientMessage::CreateItem{name} => sync_handle.send_event(
+                                            AuctionEvent::EditItem {id: None, name: Some(name), initial_price: None},
+                                    ).await,
                                 }
                             },
                             _ => {},

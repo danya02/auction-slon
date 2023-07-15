@@ -1,9 +1,10 @@
+all: fetch-bootstrap svg-size-fix build-front-admin build-front-user clean-bootstrap svg-size-unfix build-backend run-backend
+
 dev: reset-db all
 
 reset-db:
 	cd backend && sqlx db reset -y
 
-all: fetch-bootstrap svg-size-fix build-front-admin build-front-user clean-bootstrap svg-size-unfix build-backend run-backend
 
 fetch-bootstrap:
 	wget -O bootstrap.min.css https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css

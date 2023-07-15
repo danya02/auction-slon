@@ -143,6 +143,21 @@ pub enum AdminClientMessage {
 
     /// Delete a user by ID
     DeleteUser { id: i64 },
+
+    /// Remove the record indicating that the item was sold.
+    ClearSaleStatus { id: i64 },
+
+    /// Create an item by name.
+    CreateItem { name: String },
+
+    /// Change the name of an item by ID.
+    ChangeItemName { id: i64, new_name: String },
+
+    /// Change the initial price of an item by ID.
+    ChangeItemInitialPrice { id: i64, new_price: String },
+
+    /// Delete an item by ID.
+    DeleteItem { id: i64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -205,6 +205,20 @@ pub enum AuctionEvent {
         name: Option<String>,
         balance: Option<Money>,
     },
+
+    /// An admin has forced clearing the sale status of an item
+    ClearSaleStatus { id: i64 },
+
+    /// An admin has requested that an item be changed, created or deleted.
+    ///
+    /// If id is None, create.
+    /// If id is Some, but name and balance is None, delete.
+    /// If id is Some, and name or balance is Some, change.
+    EditItem {
+        id: Option<i64>,
+        name: Option<String>,
+        initial_price: Option<Money>,
+    },
 }
 
 async fn auction_manager_inner(
@@ -414,6 +428,85 @@ async fn auction_manager_inner(
                                 }
                             },
                         }
+                    },
+
+                    AuctionEvent::ClearSaleStatus {id} => {
+                        // Remove the sale row, if it exists.
+                        // After, send the item states.
+                        query!("DELETE FROM auction_item_sale WHERE item_id=?", id).execute(pool).await?;
+
+                        let item_rows = query!(r#"
+                            SELECT
+                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
+                            FROM auction_item
+                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
+                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
+                            "#).fetch_all(pool).await?;
+                        let mut item_data = vec![];
+                        for row in item_rows {
+                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
+                            let state = match row.buyer_id {
+                                None => ItemStateValue::Sellable,
+                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
+                            };
+                            item_data.push(ItemState {item, state});
+                        }
+                        item_sale_state_tx.send_replace(item_data);
+                    },
+
+                    AuctionEvent::EditItem {id, name, initial_price} => {
+                        match id {
+                            Some(id) => {
+                                // Editing or deleting item
+                                if (&name, initial_price) == (&None, None) {
+                                    query!("DELETE FROM auction_item WHERE id=?", id).execute(pool).await?;
+                                } else {
+                                    let mut tx = pool.begin().await?;
+
+                                    if let Some(name) = name.clone() {
+                                        query!("UPDATE auction_item SET name=? WHERE id=?", name, id).execute(&mut tx).await?;
+                                    }
+                                    if let Some(price) = initial_price {
+                                        query!("UPDATE auction_item SET name=? WHERE initial_price=?", name, price).execute(&mut tx).await?;
+                                    }
+
+                                    tx.commit().await?;
+                                }
+                            },
+                            None => {
+                                // Creating item
+                                let name = name.or(Some(String::new())).unwrap().clone();
+                                let name = name.trim();
+                                let name = if name.is_empty() {
+                                    "Unnamed Item".to_string()
+                                } else {
+                                    name.to_string()
+                                };
+
+                                let price = initial_price.or(Some(1)).unwrap();
+
+                                query!("INSERT INTO auction_item (name, initial_price) VALUES (?,?)", name, price).execute(pool).await?;
+                            },
+                        };
+
+                        // After the action was taken, send the current item states.
+                        let item_rows = query!(r#"
+                            SELECT
+                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
+                            FROM auction_item
+                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
+                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
+                            "#).fetch_all(pool).await?;
+                        let mut item_data = vec![];
+                        for row in item_rows {
+                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
+                            let state = match row.buyer_id {
+                                None => ItemStateValue::Sellable,
+                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
+                            };
+                            item_data.push(ItemState {item, state});
+                        }
+                        item_sale_state_tx.send_replace(item_data);
                     },
                 }
             },
