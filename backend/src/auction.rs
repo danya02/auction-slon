@@ -1,6 +1,10 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use communication::{
+    admin_state::AdminState,
     auction::state::{AuctionItem, AuctionReport, AuctionState},
     ItemState, ItemStateValue, Money, UserAccountData, UserAccountDataWithSecrets,
 };
@@ -9,217 +13,16 @@ use sqlx::{query, SqlitePool};
 use tokio::sync::*;
 use tracing::{debug, warn};
 
+mod auction_event;
 mod english;
 mod japanese;
+mod sync_handle;
+pub use auction_event::*;
 pub use english::*;
 pub use japanese::*;
+pub use sync_handle::*;
 
-/// This struct holds the synchronization items needed to talk to the auction manager.
-#[derive(Clone, Debug)]
-pub struct AuctionSyncHandle {
-    /// Stores info on the current set of auction members.
-    pub auction_members: watch::Receiver<Vec<UserAccountDataWithSecrets>>,
-
-    /// Allows fetching member by their login key.
-    /// Send in the login key, and a oneshot sender to get back the account data.
-    get_member_by_key: mpsc::Sender<(String, oneshot::Sender<Option<UserAccountData>>)>,
-
-    /// Allows getting a member by their ID.
-    /// Send in the ID, and a oneshot sender to get back the account data.
-    get_member_by_id: mpsc::Sender<(i64, oneshot::Sender<Option<UserAccountData>>)>,
-
-    /// Stores info on the current auction state.
-    pub auction_state: watch::Receiver<AuctionState>,
-
-    /// Allows sending into the auction thread events that influence the auction.
-    auction_event_sender: mpsc::Sender<AuctionEvent>,
-
-    /// Stores info about the current state of item sales.
-    pub item_sale_states: watch::Receiver<Vec<ItemState>>,
-
-    /// Holds handles to ask the connection tasks to quit because somebody else is connecting.
-    pub connection_drop_handles: Arc<Mutex<HashMap<i64, oneshot::Sender<()>>>>,
-}
-
-impl AuctionSyncHandle {
-    /// Wrapper for the `get_member_by_key` process.
-    ///
-    /// If the user exists, it also returns a future
-    /// that will resolve if `get_member_by_key` is called again with the same key.
-    /// The user connection thread should use that as a signal to terminate the connection,
-    /// to avoid race conditions between the two connections.
-    pub async fn get_member_by_key(
-        &self,
-        key: String,
-    ) -> Option<(UserAccountData, oneshot::Receiver<()>)> {
-        // Make a oneshot channel
-        let (tx, rx) = oneshot::channel();
-        // Send it to the manager
-        self.get_member_by_key
-            .send((key, tx))
-            .await
-            .expect("Manager closed without receiving command to get member");
-
-        let user = rx
-            .await
-            .expect("Manager closed without giving back member by key");
-        match user {
-            None => None,
-            Some(user_data) => {
-                // If we have a stored drop handle, call it.
-                let mut handles = self.connection_drop_handles.lock().await;
-                if let Some(sender) = handles.remove(&user_data.id) {
-                    sender.send(()).ignore();
-                }
-
-                // Put a new handle into the drop handles.
-                let (drop_tx, drop_rx) = oneshot::channel();
-                handles.insert(user_data.id, drop_tx);
-
-                Some((user_data, drop_rx))
-            }
-        }
-    }
-
-    /// Wrapper for the `get_member_by_key` process
-    pub async fn get_member_by_id(&self, id: i64) -> Option<UserAccountData> {
-        // Make a oneshot channel
-        let (tx, rx) = oneshot::channel();
-        // Send it to the manager
-        self.get_member_by_id
-            .send((id, tx))
-            .await
-            .expect("Manager closed without receiving command to get member");
-
-        rx.await
-            .expect("Manager closed without giving back member by ID")
-    }
-
-    /// Send an AuctionEvent into the auction process.
-    pub async fn send_event(&self, event: AuctionEvent) {
-        self.auction_event_sender
-            .send(event)
-            .await
-            .expect("Auction thread is not running while sending AuctionEvent into it?!");
-    }
-
-    /// Initialize the auction manager with tokio::spawn, passing in the counterparts of the items in the struct,
-    /// and create an instance of this struct.
-    ///
-    /// You should only call this once per program run.
-    pub async fn new(pool: SqlitePool) -> Self {
-        let (amtx, amrx) = watch::channel(vec![]);
-        let (astx, asrx) = watch::channel(AuctionState::WaitingForAuction);
-        let (isstx, issrx) = watch::channel(vec![]);
-        let (gmbktx, gmbkrx) = mpsc::channel(100);
-        let (gmbitx, gmbirx) = mpsc::channel(100);
-        let (aetx, aerx) = mpsc::channel(100);
-        tokio::spawn(auction_manager(
-            pool, amtx, gmbkrx, gmbirx, astx, aerx, isstx,
-        ));
-        AuctionSyncHandle {
-            auction_members: amrx,
-            get_member_by_key: gmbktx,
-            get_member_by_id: gmbitx,
-            auction_state: asrx,
-            auction_event_sender: aetx,
-            item_sale_states: issrx,
-            connection_drop_handles: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-}
-
-async fn auction_manager(
-    pool: SqlitePool,
-    mut auction_member_tx: watch::Sender<Vec<UserAccountDataWithSecrets>>,
-    mut get_member_by_key_rx: mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
-    mut get_member_by_id_rx: mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
-    mut auction_state_tx: watch::Sender<AuctionState>,
-    mut auction_event_rx: mpsc::Receiver<AuctionEvent>,
-    mut item_sale_state_tx: watch::Sender<Vec<ItemState>>,
-) -> ! {
-    loop {
-        let result = auction_manager_inner(
-            &pool,
-            &mut auction_member_tx,
-            &mut get_member_by_key_rx,
-            &mut get_member_by_id_rx,
-            &mut auction_state_tx,
-            &mut auction_event_rx,
-            &mut item_sale_state_tx,
-        )
-        .await;
-        match result {
-            Ok(_) => unreachable!(),
-            Err(why) => eprintln!("Auction manager task closed with error: {why} {why:?}"),
-        }
-    }
-}
-
-trait Ignorable {
-    fn ignore(self);
-}
-
-impl<T, E> Ignorable for Result<T, E> {
-    fn ignore(self) {}
-}
-
-/// Represents events that can change the progress of the auction.
-#[derive(Debug)]
-pub enum AuctionEvent {
-    /// An admin has requested that the auction enter the "waiting for item" state.
-    StartAuction,
-
-    /// An admin has requested that an item be selected for auctioning.
-    PrepareAuctioning(i64),
-
-    /// An admin has requested that an English auction be used to sell the given item.
-    RunEnglishAuction(i64),
-
-    /// An admin has requested that a Japanese auction be used to sell the given item.
-    RunJapaneseAuction(i64),
-
-    /// A user has placed a bid in an English auction that's in progress.
-    BidInEnglishAuction {
-        user_id: i64,
-        item_id: i64,
-        bid_amount: Money,
-    },
-
-    /// A user has entered or exited the Japanese auction's arena.
-    JapaneseAuctionAction(JapaneseAuctionEvent),
-
-    /// An admin has requested entering the "auction over" state
-    FinishAuction,
-
-    /// An admin has requested that the auction be started from the beginning.
-    StartAuctionAnew,
-
-    /// An admin has requested that a user be changed, created or deleted.
-    ///
-    /// If id is None, create.
-    /// If id is Some, but name and balance is None, delete.
-    /// If id is Some, and name or balance is Some, change.
-    EditUser {
-        id: Option<i64>,
-        name: Option<String>,
-        balance: Option<Money>,
-    },
-
-    /// An admin has forced clearing the sale status of an item
-    ClearSaleStatus { id: i64 },
-
-    /// An admin has requested that an item be changed, created or deleted.
-    ///
-    /// If id is None, create.
-    /// If id is Some, but name and balance is None, delete.
-    /// If id is Some, and name or balance is Some, change.
-    EditItem {
-        id: Option<i64>,
-        name: Option<String>,
-        initial_price: Option<Money>,
-    },
-}
+use crate::Ignorable;
 
 async fn auction_manager_inner(
     pool: &SqlitePool,
@@ -229,6 +32,7 @@ async fn auction_manager_inner(
     auction_state_tx: &mut watch::Sender<AuctionState>,
     auction_event_rx: &mut mpsc::Receiver<AuctionEvent>,
     item_sale_state_tx: &mut watch::Sender<Vec<ItemState>>,
+    admin_state_tx: &mut watch::Sender<AdminState>,
 ) -> anyhow::Result<()> {
     let mut user_data_refresh_interval = tokio::time::interval(Duration::from_secs(1));
 
@@ -256,37 +60,92 @@ async fn auction_manager_inner(
     use AuctionType::*;
     let mut current_auction = NoAuction;
 
-    loop {
-        tokio::select! {
-            // === Periodic updates ===
-            _ = item_data_refresh_interval.tick() => {
-                let item_rows = query!(r#"
+    // Ensure that the needed KV records are in the database.
+    if query!("SELECT * FROM kv_data_int WHERE key='holding_balance'")
+        .fetch_optional(pool)
+        .await?
+        .is_none()
+    {
+        query!("INSERT INTO kv_data_int (key,value) VALUES ('holding_balance', 0)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Gather the initial admin state and send it.
+    let get_admin_state = {
+        async move |pool: &SqlitePool| -> anyhow::Result<AdminState> {
+            let holding_account_balance =
+                query!("SELECT value FROM kv_data_int WHERE key='holding_balance'")
+                    .fetch_one(pool)
+                    .await?
+                    .value;
+            let state = AdminState {
+                holding_account_balance: holding_account_balance as Money,
+                when: SystemTime::now(),
+            };
+            Ok(state)
+        }
+    };
+
+    admin_state_tx.send_replace(get_admin_state(&pool).await?);
+
+    let get_item_state = {
+        async move |pool: &SqlitePool| -> anyhow::Result<Vec<ItemState>> {
+            let item_rows = query!(r#"
                     SELECT
                         auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
                     FROM auction_item
                     LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
                     LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
                     "#).fetch_all(pool).await?;
-                    let mut item_data = vec![];
-                    for row in item_rows {
-                        let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
-                        let state = match row.buyer_id {
-                            None => ItemStateValue::Sellable,
-                            Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
-                        };
-                        item_data.push(ItemState {item, state});
-                    }
-                    item_sale_state_tx.send_replace(item_data);
+            let mut item_data = vec![];
+            for row in item_rows {
+                let item = AuctionItem {
+                    id: row.id,
+                    name: row.name,
+                    initial_price: row.initial_price as Money,
+                };
+                let state = match row.buyer_id {
+                    None => ItemStateValue::Sellable,
+                    Some(id) => ItemStateValue::AlreadySold {
+                        buyer: UserAccountData {
+                            id,
+                            user_name: row.username,
+                            balance: row.balance as Money,
+                        },
+                        sale_price: row.sale_price.unwrap() as Money,
+                    },
+                };
+                item_data.push(ItemState { item, state });
+            }
+            Ok(item_data)
+        }
+    };
+
+    let get_user_state =
+        async move |pool: &SqlitePool| -> anyhow::Result<Vec<UserAccountDataWithSecrets>> {
+            let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
+            let mut user_data = vec![];
+            for row in user_rows {
+                user_data.push(UserAccountDataWithSecrets {
+                    id: row.id,
+                    user_name: row.name,
+                    balance: row.balance as u32,
+                    login_key: row.login_key,
+                });
+            }
+            Ok(user_data)
+        };
+
+    loop {
+        tokio::select! {
+            // === Periodic updates ===
+            _ = item_data_refresh_interval.tick() => {
+                item_sale_state_tx.send_replace(get_item_state(pool).await?);
             },
 
             _ = user_data_refresh_interval.tick() => {
-                // Gather all user info, then apply it to the watcher
-                let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
-                let mut user_data = vec![];
-                for row in user_rows {
-                    user_data.push(UserAccountDataWithSecrets { id: row.id, user_name: row.name, balance: row.balance as u32, login_key: row.login_key });
-                }
-                auction_member_tx.send_replace(user_data.clone());
+                auction_member_tx.send_replace(get_user_state(pool).await?);
             },
 
 
@@ -351,27 +210,10 @@ async fn auction_manager_inner(
                         // Gather auction report
                         // First, collect the latest user data
                         // (which is redundant with the periodic data, but it's more convenient to have it here)
-                        let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
-                        let user_data = user_rows.into_iter().map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32 }).collect();
+                        let user_data = get_user_state(pool).await?.into_iter().map(|i| i.into()).collect();
 
                         // Then, collect the sale data
-                        let item_rows = query!(r#"
-                            SELECT
-                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
-                            FROM auction_item
-                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
-                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
-                            "#).fetch_all(pool).await?;
-                        let mut item_data = vec![];
-                        for row in item_rows {
-                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
-                            let state = match row.buyer_id {
-                                None => ItemStateValue::Sellable,
-                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
-                            };
-                            item_data.push(ItemState {item, state});
-                        }
-
+                        let item_data = get_item_state(pool).await?;
 
                         let report = AuctionReport { items: item_data, members: user_data };
                         auction_state_tx.send_replace(AuctionState::AuctionOver(report));
@@ -410,7 +252,8 @@ async fn auction_manager_inner(
                                         balance,
                                         login_key,
                                     ).execute(pool).await?;
-                                }
+                                };
+                                user_data_refresh_interval.reset();
                             },
                             Some(id) => {
                                 // Changing or deleting user
@@ -425,33 +268,17 @@ async fn auction_manager_inner(
                                         query!("UPDATE auction_user SET balance=? WHERE id=?", balance, id).execute(&mut tx).await?;
                                     }
                                     tx.commit().await?;
-                                }
+                                };
+                                user_data_refresh_interval.reset();
                             },
-                        }
+                        };
                     },
 
                     AuctionEvent::ClearSaleStatus {id} => {
                         // Remove the sale row, if it exists.
                         // After, send the item states.
                         query!("DELETE FROM auction_item_sale WHERE item_id=?", id).execute(pool).await?;
-
-                        let item_rows = query!(r#"
-                            SELECT
-                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
-                            FROM auction_item
-                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
-                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
-                            "#).fetch_all(pool).await?;
-                        let mut item_data = vec![];
-                        for row in item_rows {
-                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
-                            let state = match row.buyer_id {
-                                None => ItemStateValue::Sellable,
-                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
-                            };
-                            item_data.push(ItemState {item, state});
-                        }
-                        item_sale_state_tx.send_replace(item_data);
+                        item_data_refresh_interval.reset();
                     },
 
                     AuctionEvent::EditItem {id, name, initial_price} => {
@@ -469,7 +296,6 @@ async fn auction_manager_inner(
                                     if let Some(price) = initial_price {
                                         query!("UPDATE auction_item SET name=? WHERE initial_price=?", name, price).execute(&mut tx).await?;
                                     }
-
                                     tx.commit().await?;
                                 }
                             },
@@ -490,23 +316,52 @@ async fn auction_manager_inner(
                         };
 
                         // After the action was taken, send the current item states.
-                        let item_rows = query!(r#"
-                            SELECT
-                                auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
-                            FROM auction_item
-                            LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
-                            LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
-                            "#).fetch_all(pool).await?;
-                        let mut item_data = vec![];
-                        for row in item_rows {
-                            let item = AuctionItem { id: row.id, name: row.name, initial_price: row.initial_price as Money };
-                            let state = match row.buyer_id {
-                                None => ItemStateValue::Sellable,
-                                Some(id) => ItemStateValue::AlreadySold { buyer: UserAccountData { id, user_name: row.username, balance: row.balance as Money }, sale_price: row.sale_price.unwrap() as Money },
+                        item_data_refresh_interval.reset();
+                    },
+                    AuctionEvent::HoldingAccountTransfer { user_id, new_balance } => {
+                        let mut tx = pool.begin().await?;
+                        let user_balance = query!("SELECT balance FROM auction_user WHERE id=?", user_id).fetch_optional(&mut tx).await?;
+                        let user_balance = match user_balance {
+                            Some(t) => t.balance as Money,
+                            None => {
+                                warn!("Tried to transfer across holding account for user ID {user_id}, which does not exist -- desync?");
+                                continue;
+                            }
+                        };
+                        let holding_balance = admin_state_tx.borrow().holding_account_balance;
+                        let new_user_balance;
+                        let new_holding_balance;
+                        if new_balance < user_balance {
+                            // Taking money out of user account and putting it into holding
+                            // (typically useless check because Money is unsigned)
+                            #[allow(unused_comparisons)]
+                            let to_withdraw = if new_balance < 0 {
+                                user_balance
+                            } else {
+                                user_balance - new_balance
                             };
-                            item_data.push(ItemState {item, state});
+
+                            new_user_balance = user_balance - to_withdraw;
+                            new_holding_balance = holding_balance + to_withdraw;
+                        } else {
+                            // Taking money out of holding and put it into user account
+                            let to_deposit = if (new_balance - user_balance)>holding_balance {
+                                // This means that we requested to deposit more than holding balance
+                                // So deposit all
+                                holding_balance
+                            } else {
+                                new_balance - user_balance
+                            };
+                            new_holding_balance = holding_balance - to_deposit;
+                            new_user_balance = user_balance + to_deposit;
                         }
-                        item_sale_state_tx.send_replace(item_data);
+                        query!("UPDATE auction_user SET balance=? WHERE id=?", new_user_balance, user_id).execute(&mut tx).await?;
+                        query!("UPDATE kv_data_int SET value=? WHERE key='holding_balance'", new_holding_balance).execute(&mut tx).await?;
+                        tx.commit().await?;
+
+                        admin_state_tx.send_replace(get_admin_state(&pool).await?);
+                        user_data_refresh_interval.reset();
+
                     },
                 }
             },

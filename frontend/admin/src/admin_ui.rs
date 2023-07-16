@@ -1,19 +1,22 @@
 use common::{
-    components::AuctionReportView,
-    layout::{Container, VerticalStack},
+    components::{AuctionReportView, MoneyDisplay},
+    layout::{Container, HorizontalStack, VerticalStack},
 };
 use communication::{
-    auction::state::AuctionState, AdminClientMessage, ItemState, UserAccountDataWithSecrets,
+    admin_state::AdminState, auction::state::AuctionState, AdminClientMessage, ItemState,
+    UserAccountDataWithSecrets,
 };
 use yew::prelude::*;
 
 use crate::admin_ui::{
-    choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell, item_sold::ItemSoldDisplay,
+    choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell,
+    holding_account_transfer::HoldingAccountTransferTable, item_sold::ItemSoldDisplay,
     show_bid_progress::ShowBidProgress,
 };
 
 mod choose_item;
 mod confirm_item;
+mod holding_account_transfer;
 mod item_sold;
 mod setup;
 mod show_bid_progress;
@@ -21,6 +24,7 @@ mod show_bid_progress;
 #[derive(Properties, PartialEq)]
 pub struct AdminUiProps {
     pub auction_state: AuctionState,
+    pub admin_state: AdminState,
     pub users: Vec<UserAccountDataWithSecrets>,
     pub items: Vec<ItemState>,
     pub send: SendToServer,
@@ -64,11 +68,32 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
                 })
             };
             html! {
-                <VerticalStack>
-                    <h1>{"Please choose an item to auction off next"}</h1>
-                    <ChooseItemToSell send={props.send.clone()} items={props.items.clone()} />
-                    <button class="btn btn-danger" onclick={conclude_cb}>{"Conclude auction"}</button>
-                </VerticalStack>
+                <HorizontalStack>
+                    <VerticalStack>
+                        <h1>{"Please choose an item to auction off next"}</h1>
+                        <ChooseItemToSell send={props.send.clone()} items={props.items.clone()} admin_state={props.admin_state.clone()} />
+                        <button class="btn btn-danger" onclick={conclude_cb}>{"Conclude auction"}</button>
+                    </VerticalStack>
+                    <VerticalStack>
+                        <h1>{"Transfer money manually"}</h1>
+                        {
+                            if props.admin_state.holding_account_balance == 0 {
+                                html!(
+                                    <div class="alert alert-success">
+                                        {"Holding account balance: "}<MoneyDisplay money={0} />
+                                    </div>
+                                )
+                            } else {
+                                html!(
+                                    <div class="alert alert-warning">
+                                        {"Holding account balance: "}<MoneyDisplay money={props.admin_state.holding_account_balance} />
+                                    </div>
+                                )
+                            }
+                        }
+                        <HoldingAccountTransferTable send={props.send.clone()} admin_state={props.admin_state.clone()} users={props.users.clone()}/>
+                    </VerticalStack>
+                </HorizontalStack>
             }
         }
 

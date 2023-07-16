@@ -39,3 +39,14 @@ pub fn VerticalStack(props: &PlainChildrenProps) -> Html {
         </div>
     }
 }
+
+/// Put the items next to each other, left to right, in columns.
+/// Each of the columns are aligned at the top.
+#[function_component]
+pub fn HorizontalStack(props: &PlainChildrenProps) -> Html {
+    html! {
+        <div class={classes!("row", "align-items-start", props.class.clone())}>
+            { props.children.iter().map(|child| html!(<div class="col mx-2">{child}</div>)).collect::<Html>() }
+        </div>
+    }
+}

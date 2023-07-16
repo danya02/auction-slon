@@ -78,6 +78,7 @@ fn main_app() -> Html {
     }
 
     let auction_state = use_state_eq(|| None);
+    let admin_state = use_state_eq(|| None);
     let auction_members = use_list(vec![]);
     let item_states = use_list(vec![]);
 
@@ -87,6 +88,7 @@ fn main_app() -> Html {
         let auction_state = auction_state.clone();
         let auction_members = auction_members.clone();
         let item_states = item_states.clone();
+        let admin_state = admin_state.clone();
         // Receive message by depending on `ws.message_bytes`.
         use_effect_with_deps(
             move |message| {
@@ -101,6 +103,7 @@ fn main_app() -> Html {
                                 auction_state.set(Some(state))
                             }
                             AdminServerMessage::ItemStates(items) => item_states.set(items),
+                            AdminServerMessage::AdminState(state) => admin_state.set(Some(state)),
                         },
                     }
                 }
@@ -146,12 +149,12 @@ fn main_app() -> Html {
     match *ws.ready_state {
         UseWebSocketReadyState::Open => {
             // We need to have the auction info before continuing
-            match (&*auction_state,) {
-                (Some(state),) => {
-                    html!(<AdminUserInterface auction_state={state.clone()} send={send_cb} items={item_states.current().clone()} users={auction_members.current().clone()}/>)
+            match (&*auction_state, &*admin_state) {
+                (Some(auction_state), Some(admin_state)) => {
+                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} send={send_cb} items={item_states.current().clone()} users={auction_members.current().clone()}/>)
                 }
                 _ => {
-                    html!(<FullscreenMsg message="Waiting for server to send auction info..." show_reload_button={true} />)
+                    html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)
                 }
             }
         }

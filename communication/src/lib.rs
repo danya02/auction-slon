@@ -1,9 +1,11 @@
+use admin_state::AdminState;
 use auction::{
     actions::JapaneseAuctionAction,
     state::{AuctionItem, AuctionState},
 };
 use serde::{Deserialize, Serialize};
 
+pub mod admin_state;
 pub mod auction;
 
 pub fn encode<T>(msg: &T) -> Vec<u8>
@@ -76,6 +78,7 @@ pub enum AdminServerMessage {
     AuctionMembers(Vec<UserAccountDataWithSecrets>),
     AuctionState(AuctionState),
     ItemStates(Vec<ItemState>),
+    AdminState(AdminState),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -158,6 +161,11 @@ pub enum AdminClientMessage {
 
     /// Delete an item by ID.
     DeleteItem { id: i64 },
+
+    /// Transactionally transfer money between the holding account and the given user account,
+    /// so that the user account has the given amount of money.
+    /// If the holding account does not have enough, zero it out.
+    TransferAcrossHolding { user_id: i64, new_balance: Money },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

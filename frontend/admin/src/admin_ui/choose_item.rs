@@ -1,5 +1,5 @@
 use common::components::MoneyDisplay;
-use communication::{AdminClientMessage, ItemState};
+use communication::{admin_state::AdminState, AdminClientMessage, ItemState};
 use yew::prelude::*;
 
 use super::SendToServer;
@@ -8,6 +8,7 @@ use super::SendToServer;
 pub struct ChooseItemProps {
     pub items: Vec<ItemState>,
     pub send: SendToServer,
+    pub admin_state: AdminState,
 }
 
 #[function_component]
@@ -18,13 +19,21 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
             communication::ItemStateValue::Sellable => {
                 let send = props.send.clone();
                 let id = item.item.id;
-                let start_selling_cb = Callback::from(move |e: MouseEvent| {
-                    e.prevent_default();
-                    send.emit(AdminClientMessage::PrepareAuctioning(id));
-                });
 
-                html! {
-                    <a href="#" class="btn btn-primary stretched-link" onclick={start_selling_cb}>{"Sell this"}</a>
+                // Do not allow selling until the holding account is at zero.
+                if props.admin_state.holding_account_balance == 0 {
+                    let start_selling_cb = Callback::from(move |e: MouseEvent| {
+                        e.prevent_default();
+                        send.emit(AdminClientMessage::PrepareAuctioning(id));
+                    });
+
+                    html! {
+                        <a href="#" class="btn btn-primary stretched-link" onclick={start_selling_cb}>{"Sell this"}</a>
+                    }
+                } else {
+                    html! {
+                        <span class="btn btn-outline-danger disabled">{"Spend holding account first"}</span>
+                    }
                 }
             }
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => html! {

@@ -42,6 +42,8 @@ pub async fn handle_socket(
     let state = sync_handle.auction_state.borrow().clone();
     send!(socket, AdminServerMessage::AuctionState(state));
     send!(socket, AdminServerMessage::ItemStates(vec![]));
+    let state = sync_handle.admin_state.borrow().clone();
+    send!(socket, AdminServerMessage::AdminState(state));
 
     loop {
         tokio::select! {
@@ -154,6 +156,9 @@ pub async fn handle_socket(
                                     AdminClientMessage::CreateItem{name} => sync_handle.send_event(
                                             AuctionEvent::EditItem {id: None, name: Some(name), initial_price: None},
                                     ).await,
+                                    AdminClientMessage::TransferAcrossHolding{user_id, new_balance} => sync_handle.send_event(
+                                        AuctionEvent::HoldingAccountTransfer{user_id, new_balance}
+                                    ).await,
                                 }
                             },
                             _ => {},
@@ -172,6 +177,10 @@ pub async fn handle_socket(
             _ = sync_handle.item_sale_states.changed() => {
                 let latest_state = sync_handle.item_sale_states.borrow().clone();
                 send!(socket, AdminServerMessage::ItemStates(latest_state));
+            },
+            _ = sync_handle.admin_state.changed() => {
+                let latest_state = sync_handle.admin_state.borrow().clone();
+                send!(socket, AdminServerMessage::AdminState(latest_state));
             },
         }
     }

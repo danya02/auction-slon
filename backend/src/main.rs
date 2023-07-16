@@ -25,6 +25,14 @@ mod auction;
 mod test_data;
 mod user;
 
+trait Ignorable {
+    fn ignore(self);
+}
+
+impl<T, E> Ignorable for Result<T, E> {
+    fn ignore(self) {}
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

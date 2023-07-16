@@ -401,6 +401,9 @@ pub fn NumberInput(props: &NumberInputProps) -> Html {
             type="number" value={(*current_value).clone()}
             class={classes!("form-control", is_dirty.then_some("border-warning"))}
             {onchange}
-            {oninput} />
+            {oninput}
+            min={&props.min}
+            max={&props.max}
+            step={&props.step} />
     )
 }
