@@ -67,7 +67,7 @@ pub async fn run_english_auction(
             // just return to the item selection state
             // The auction admin can then try to re-sell the item.
             if current_bidder_id == 0 {
-                state_tx.send(AuctionState::WaitingForAuction).await?;
+                state_tx.send(AuctionState::WaitingForItem).await?;
                 return Ok(());
             }
 

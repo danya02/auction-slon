@@ -1,4 +1,4 @@
-use communication::{auction::state::AuctionState, UserAccountData};
+use communication::{auction::state::AuctionState, UserAccountData, WithTimestamp};
 use yew::prelude::*;
 
 use common::{
@@ -15,15 +15,15 @@ use crate::components::{
 
 #[derive(Properties, PartialEq)]
 pub struct AuctionViewProps {
-    pub state: AuctionState,
-    pub members: Vec<UserAccountData>, // TODO: this is inefficient; consider alternative ways of passing this list
+    pub state: WithTimestamp<AuctionState>,
+    pub members: WithTimestamp<Vec<UserAccountData>>, // TODO: this is inefficient; consider alternative ways of passing this list
     pub account: UserAccountData,
     pub send: Callback<Vec<u8>>,
 }
 
 #[function_component]
 pub fn AuctionView(props: &AuctionViewProps) -> Html {
-    match &props.state {
+    match &*props.state {
         AuctionState::WaitingForAuction => {
             html!(<FullscreenMsg message="Waiting for auction to begin..." show_reload_button={true} user_account={props.account.clone()}/>)
         }

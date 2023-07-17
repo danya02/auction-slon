@@ -1,6 +1,6 @@
 use common::components::NumberInput;
 use communication::{
-    admin_state::AdminState, AdminClientMessage, Money, UserAccountDataWithSecrets,
+    admin_state::AdminState, AdminClientMessage, Money, UserAccountDataWithSecrets, WithTimestamp,
 };
 use yew::prelude::*;
 
@@ -9,15 +9,15 @@ use super::SendToServer;
 #[derive(Properties, PartialEq)]
 pub struct HoldingAccountTransferTableProps {
     pub send: SendToServer,
-    pub admin_state: AdminState,
-    pub users: Vec<UserAccountDataWithSecrets>,
+    pub admin_state: WithTimestamp<AdminState>,
+    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
 }
 
 #[function_component]
 pub fn HoldingAccountTransferTable(props: &HoldingAccountTransferTableProps) -> Html {
     // Table where first column is user's name, and second column is an input to transfer money to/from holding acct.
     let mut rows = Vec::with_capacity(props.users.len());
-    for user in &props.users {
+    for user in &*props.users {
         let onchange = {
             let send = props.send.clone();
             let user_id = user.id;

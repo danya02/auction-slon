@@ -1,20 +1,20 @@
 use common::components::MoneyDisplay;
-use communication::{admin_state::AdminState, AdminClientMessage, ItemState};
+use communication::{admin_state::AdminState, AdminClientMessage, ItemState, WithTimestamp};
 use yew::prelude::*;
 
 use super::SendToServer;
 
 #[derive(Properties, PartialEq)]
 pub struct ChooseItemProps {
-    pub items: Vec<ItemState>,
+    pub items: WithTimestamp<Vec<ItemState>>,
     pub send: SendToServer,
-    pub admin_state: AdminState,
+    pub admin_state: WithTimestamp<AdminState>,
 }
 
 #[function_component]
 pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
     let mut item_rows: Vec<Html> = vec![];
-    for item in &props.items {
+    for item in &*props.items {
         let action = match &item.state {
             communication::ItemStateValue::Sellable => {
                 let send = props.send.clone();

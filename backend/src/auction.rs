@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{sync::Arc, time::Duration};
 
 use communication::{
     admin_state::AdminState,
@@ -81,7 +78,6 @@ async fn auction_manager_inner(
                     .value;
             let state = AdminState {
                 holding_account_balance: holding_account_balance as Money,
-                when: SystemTime::now(),
             };
             Ok(state)
         }

@@ -1,6 +1,6 @@
 use axum::extract::ws::{close_code, Message, WebSocket};
 
-use communication::{decode, encode, AdminClientMessage, AdminServerMessage};
+use communication::{decode, encode, AdminClientMessage, AdminServerMessage, WithTimestamp};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -37,12 +37,13 @@ pub async fn handle_socket(
     }
 
     // Now send the auction info
-    let members = sync_handle.auction_members.borrow().clone();
+    let members: WithTimestamp<_> = sync_handle.auction_members.borrow().clone().into();
     send!(socket, AdminServerMessage::AuctionMembers(members));
-    let state = sync_handle.auction_state.borrow().clone();
+    let state: WithTimestamp<_> = sync_handle.auction_state.borrow().clone().into();
     send!(socket, AdminServerMessage::AuctionState(state));
-    send!(socket, AdminServerMessage::ItemStates(vec![]));
-    let state = sync_handle.admin_state.borrow().clone();
+    let state: WithTimestamp<_> = sync_handle.item_sale_states.borrow().clone().into();
+    send!(socket, AdminServerMessage::ItemStates(state));
+    let state: WithTimestamp<_> = sync_handle.admin_state.borrow().clone().into();
     send!(socket, AdminServerMessage::AdminState(state));
 
     loop {
@@ -104,7 +105,7 @@ pub async fn handle_socket(
                                                     warn!("Admin inputted invalid number: {new_balance}");
                                                     // Send the latest user state immediately.
                                                     {
-                                                        let members = sync_handle.auction_members.borrow().clone();
+                                                        let members: WithTimestamp<_> = sync_handle.auction_members.borrow().clone().into();
                                                         send!(socket, AdminServerMessage::AuctionMembers(members));
                                                     }
                                                     continue;
@@ -139,7 +140,7 @@ pub async fn handle_socket(
                                                     warn!("Admin inputted invalid number: {new_price}");
                                                     // Send the latest user state immediately.
                                                     {
-                                                        let items = sync_handle.item_sale_states.borrow().clone();
+                                                        let items: WithTimestamp<_> = sync_handle.item_sale_states.borrow().clone().into();
                                                         send!(socket, AdminServerMessage::ItemStates(items));
                                                     }
                                                     continue;
@@ -167,19 +168,19 @@ pub async fn handle_socket(
                 }
             },
             _ = sync_handle.auction_members.changed() => {
-                let latest_state = sync_handle.auction_members.borrow().clone();
+                let latest_state: WithTimestamp<_> = sync_handle.auction_members.borrow().clone().into();
                 send!(socket, AdminServerMessage::AuctionMembers(latest_state));
             },
             _ = sync_handle.auction_state.changed() => {
-                let latest_state = sync_handle.auction_state.borrow().clone();
+                let latest_state: WithTimestamp<_> = sync_handle.auction_state.borrow().clone().into();
                 send!(socket, AdminServerMessage::AuctionState(latest_state));
             },
             _ = sync_handle.item_sale_states.changed() => {
-                let latest_state = sync_handle.item_sale_states.borrow().clone();
+                let latest_state: WithTimestamp<_> = sync_handle.item_sale_states.borrow().clone().into();
                 send!(socket, AdminServerMessage::ItemStates(latest_state));
             },
             _ = sync_handle.admin_state.changed() => {
-                let latest_state = sync_handle.admin_state.borrow().clone();
+                let latest_state: WithTimestamp<_> = sync_handle.admin_state.borrow().clone().into();
                 send!(socket, AdminServerMessage::AdminState(latest_state));
             },
         }

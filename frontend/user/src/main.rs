@@ -5,6 +5,7 @@
 use auction_view::AuctionView;
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
+use communication::WithTimestamp;
 use communication::{auction::state::AuctionState, decode, encode, LoginRequest, ServerMessage};
 use gloo_storage::{SessionStorage, Storage};
 use log::info;
@@ -76,9 +77,10 @@ fn main_app() -> Html {
         );
     }
 
-    let auction_state = use_state_eq(|| AuctionState::WaitingForAuction);
+    let auction_state =
+        use_state_eq(|| WithTimestamp::new_with_zero_time(AuctionState::WaitingForAuction));
     let user_account = use_state_eq(|| None);
-    let auction_members = use_list(vec![]);
+    let auction_members = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
 
     {
         let ws = ws.clone();
@@ -147,7 +149,7 @@ fn main_app() -> Html {
                     html!(<FullscreenMsg message="Waiting for server to send user info..." show_reload_button={true} />)
                 }
                 Some(acc) => {
-                    html!(<AuctionView state={(*auction_state).clone()} members={auction_members.current().clone()} account={acc.clone()} send={send_cb}/>)
+                    html!(<AuctionView state={(*auction_state).clone()} members={(*auction_members).clone()} account={acc.clone()} send={send_cb}/>)
                 }
             }
         }

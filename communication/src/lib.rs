@@ -1,3 +1,9 @@
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+    time::SystemTime,
+};
+
 use admin_state::AdminState;
 use auction::{
     actions::JapaneseAuctionAction,
@@ -69,16 +75,57 @@ impl From<UserAccountDataWithSecrets> for UserAccountData {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ServerMessage {
     YourAccount(UserAccountData),
-    AuctionMembers(Vec<UserAccountData>),
-    AuctionState(AuctionState),
+    AuctionMembers(WithTimestamp<Vec<UserAccountData>>),
+    AuctionState(WithTimestamp<AuctionState>),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum AdminServerMessage {
-    AuctionMembers(Vec<UserAccountDataWithSecrets>),
-    AuctionState(AuctionState),
-    ItemStates(Vec<ItemState>),
-    AdminState(AdminState),
+    AuctionMembers(WithTimestamp<Vec<UserAccountDataWithSecrets>>),
+    AuctionState(WithTimestamp<AuctionState>),
+    ItemStates(WithTimestamp<Vec<ItemState>>),
+    AdminState(WithTimestamp<AdminState>),
+}
+
+/// A wrapper type that adds a timestamp to the data.
+/// This is useful so that the frontend knows to distinguish two identical datas,
+/// and can rerender if needed.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct WithTimestamp<T> {
+    pub data: T,
+    pub when: SystemTime,
+}
+
+impl<T> WithTimestamp<T> {
+    pub fn new_with_zero_time(data: T) -> WithTimestamp<T> {
+        WithTimestamp {
+            data,
+            when: SystemTime::UNIX_EPOCH,
+        }
+    }
+}
+
+impl<T> Deref for WithTimestamp<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for WithTimestamp<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl<T> From<T> for WithTimestamp<T> {
+    fn from(value: T) -> Self {
+        WithTimestamp {
+            data: value,
+            when: SystemTime::now(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

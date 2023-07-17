@@ -4,7 +4,9 @@
 
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
-use communication::{decode, encode, AdminClientMessage, AdminServerMessage, LoginRequest};
+use communication::{
+    decode, encode, AdminClientMessage, AdminServerMessage, LoginRequest, WithTimestamp,
+};
 use gloo_storage::{SessionStorage, Storage};
 use log::info;
 use serde::Deserialize;
@@ -79,8 +81,8 @@ fn main_app() -> Html {
 
     let auction_state = use_state_eq(|| None);
     let admin_state = use_state_eq(|| None);
-    let auction_members = use_list(vec![]);
-    let item_states = use_list(vec![]);
+    let auction_members = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
+    let item_states = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
 
     {
         let ws = ws.clone();
@@ -151,7 +153,7 @@ fn main_app() -> Html {
             // We need to have the auction info before continuing
             match (&*auction_state, &*admin_state) {
                 (Some(auction_state), Some(admin_state)) => {
-                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} send={send_cb} items={item_states.current().clone()} users={auction_members.current().clone()}/>)
+                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} send={send_cb} items={(*item_states).clone()} users={(*auction_members).clone()}/>)
                 }
                 _ => {
                     html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)

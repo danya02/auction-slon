@@ -1,5 +1,7 @@
 use common::components::{MoneyDisplay, NumberInput, TextInput};
-use communication::{AdminClientMessage, ItemState, Money, UserAccountDataWithSecrets};
+use communication::{
+    AdminClientMessage, ItemState, Money, UserAccountDataWithSecrets, WithTimestamp,
+};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -9,8 +11,8 @@ use super::SendToServer;
 #[derive(Properties, PartialEq)]
 pub struct SetupAuctionProps {
     pub send: SendToServer,
-    pub users: Vec<UserAccountDataWithSecrets>,
-    pub items: Vec<ItemState>,
+    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
+    pub items: WithTimestamp<Vec<ItemState>>,
 }
 
 #[function_component]
@@ -32,14 +34,14 @@ pub fn SetupAuction(props: &SetupAuctionProps) -> Html {
 #[derive(Properties, PartialEq)]
 struct UserSetupProps {
     pub send: SendToServer,
-    pub users: Vec<UserAccountDataWithSecrets>,
+    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
 }
 
 #[function_component]
 fn UserSetup(props: &UserSetupProps) -> Html {
     let mut rows = Vec::with_capacity(props.users.len());
 
-    for user in &props.users {
+    for user in &*props.users {
         let commit_name_cb = {
             let send = props.send.clone();
             let user_id = user.id;
@@ -143,14 +145,14 @@ fn UserSetup(props: &UserSetupProps) -> Html {
 #[derive(Properties, PartialEq)]
 struct ItemSetupProps {
     pub send: SendToServer,
-    pub items: Vec<ItemState>,
+    pub items: WithTimestamp<Vec<ItemState>>,
 }
 
 #[function_component]
 fn ItemSetup(props: &ItemSetupProps) -> Html {
     let mut rows = Vec::with_capacity(props.items.len());
 
-    for item in &props.items {
+    for item in &*props.items {
         let item_id = item.item.id;
 
         let item_state_component = match &item.state {

@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::extract::ws::{close_code, Message, WebSocket};
 
 use communication::{
-    auction::state::AuctionState, decode, encode, ServerMessage, UserClientMessage,
+    auction::state::AuctionState, decode, encode, ServerMessage, UserClientMessage, WithTimestamp,
 };
 use tokio::time::interval;
 #[allow(unused_imports)]
@@ -98,10 +98,10 @@ pub async fn handle_socket(
                     },
                     other => other
                 };
-                send!(socket, ServerMessage::AuctionState(latest_state));
+                send!(socket, ServerMessage::AuctionState(latest_state.into()));
             },
             _ = sync_handle.auction_members.changed() => {
-                let latest_state = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect();
+                let latest_state: WithTimestamp<_> = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect::<Vec<_>>().into();
                 send!(socket, ServerMessage::AuctionMembers(latest_state));
             },
 
@@ -121,7 +121,7 @@ pub async fn handle_socket(
                 };
 
                 send!(socket, ServerMessage::YourAccount(user.clone()));
-                let members = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect();
+                let members: WithTimestamp<_> = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect::<Vec<_>>().into();
                 send!(socket, ServerMessage::AuctionMembers(members));
 
                 // Also resend the auction state, just in case it were lost.
@@ -138,7 +138,7 @@ pub async fn handle_socket(
                     },
                     other => other
                 };
-                send!(socket, ServerMessage::AuctionState(latest_state));
+                send!(socket, ServerMessage::AuctionState(latest_state.into()));
 
 
             },

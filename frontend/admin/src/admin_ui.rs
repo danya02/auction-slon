@@ -4,7 +4,7 @@ use common::{
 };
 use communication::{
     admin_state::AdminState, auction::state::AuctionState, AdminClientMessage, ItemState,
-    UserAccountDataWithSecrets,
+    UserAccountDataWithSecrets, WithTimestamp,
 };
 use yew::prelude::*;
 
@@ -23,10 +23,10 @@ mod show_bid_progress;
 
 #[derive(Properties, PartialEq)]
 pub struct AdminUiProps {
-    pub auction_state: AuctionState,
-    pub admin_state: AdminState,
-    pub users: Vec<UserAccountDataWithSecrets>,
-    pub items: Vec<ItemState>,
+    pub auction_state: WithTimestamp<AuctionState>,
+    pub admin_state: WithTimestamp<AdminState>,
+    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
+    pub items: WithTimestamp<Vec<ItemState>>,
     pub send: SendToServer,
 }
 
@@ -43,7 +43,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
         Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuctionAnew))
     };
 
-    let content = match &props.auction_state {
+    let content = match &*props.auction_state {
         AuctionState::WaitingForAuction => html! {
             <VerticalStack>
                 <h1>{"Auction is not yet started"}</h1>
@@ -117,7 +117,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
 
     html! {
         <>
-            <AdminUiTabs state={props.auction_state.clone()}/>
+            <AdminUiTabs state={(*props.auction_state).clone()}/>
             <Container>
                 {content}
             </Container>

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, sync::Arc};
 
 use communication::{
     admin_state::AdminState, auction::state::AuctionState, ItemState, UserAccountData,
@@ -116,7 +116,6 @@ impl AuctionSyncHandle {
         let (aetx, aerx) = mpsc::channel(100);
         let (adstx, adsrx) = watch::channel(AdminState {
             holding_account_balance: 0,
-            when: SystemTime::now(),
         });
 
         tokio::spawn(auction_manager(
