@@ -253,7 +253,7 @@ async fn auction_manager_inner(
                                         login_key,
                                     ).execute(pool).await?;
                                 };
-                                user_data_refresh_interval.reset();
+                                auction_member_tx.send_replace(get_user_state(pool).await?);
                             },
                             Some(id) => {
                                 // Changing or deleting user
@@ -269,7 +269,7 @@ async fn auction_manager_inner(
                                     }
                                     tx.commit().await?;
                                 };
-                                user_data_refresh_interval.reset();
+                                auction_member_tx.send_replace(get_user_state(pool).await?);
                             },
                         };
                     },
@@ -278,7 +278,7 @@ async fn auction_manager_inner(
                         // Remove the sale row, if it exists.
                         // After, send the item states.
                         query!("DELETE FROM auction_item_sale WHERE item_id=?", id).execute(pool).await?;
-                        item_data_refresh_interval.reset();
+                        item_sale_state_tx.send_replace(get_item_state(pool).await?);
                     },
 
                     AuctionEvent::EditItem {id, name, initial_price} => {
@@ -316,7 +316,7 @@ async fn auction_manager_inner(
                         };
 
                         // After the action was taken, send the current item states.
-                        item_data_refresh_interval.reset();
+                        item_sale_state_tx.send_replace(get_item_state(pool).await?);
                     },
                     AuctionEvent::HoldingAccountTransfer { user_id, new_balance } => {
                         let mut tx = pool.begin().await?;
@@ -325,6 +325,7 @@ async fn auction_manager_inner(
                             Some(t) => t.balance as Money,
                             None => {
                                 warn!("Tried to transfer across holding account for user ID {user_id}, which does not exist -- desync?");
+                                admin_state_tx.send_replace(get_admin_state(&pool).await?);
                                 continue;
                             }
                         };
@@ -360,7 +361,7 @@ async fn auction_manager_inner(
                         tx.commit().await?;
 
                         admin_state_tx.send_replace(get_admin_state(&pool).await?);
-                        user_data_refresh_interval.reset();
+                        auction_member_tx.send_replace(get_user_state(pool).await?);
 
                     },
                 }

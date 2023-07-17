@@ -74,17 +74,18 @@ fn UserSetup(props: &UserSetupProps) -> Html {
         };
 
         let row = html! {
-            <div class="card mb-3">
-                <div class="card-body">
+            <tr>
+                <td>
                     <TextInput prefill_value={user.user_name.clone()} onchange={commit_name_cb} />
-                    <div class="input-group mb-2">
-                        <span class="input-group-text">{"Balance: "}</span>
-                        <NumberInput prefill_value={user.balance.to_string()} onchange={commit_balance_cb} min="0" max={Money::MAX.to_string()} step="1" />
-                    </div>
-                    <p>{"Login key: "}<code>{user.login_key.clone()}</code></p>
-                    <button class="btn btn-danger" onclick={delete_user_cb}>{"Delete user"}</button>
-                </div>
-            </div>
+                </td>
+                <td>
+                    <NumberInput prefill_value={user.balance.to_string()} onchange={commit_balance_cb} min="0" max={Money::MAX.to_string()} step="1" />
+                </td>
+                <td class="hover-to-reveal-box"><code>{user.login_key.clone()}</code></td>
+                <td>
+                    <button class="btn btn-outline-danger" onclick={delete_user_cb}>{"Delete"}</button>
+                </td>
+            </tr>
         };
         rows.push(row);
     }
@@ -112,15 +113,31 @@ fn UserSetup(props: &UserSetupProps) -> Html {
         })
     };
     rows.push(html!(
-        <div class="card mb-3">
-            <div class="card-body">
-                <input class="form-control mb-2" type="text" value={(*new_user_name).clone()} oninput={new_user_name_edit_cb} placeholder="New user name..." />
+        <tr>
+            <td colspan="3">
+                <input class="form-control" type="text" value={(*new_user_name).clone()} oninput={new_user_name_edit_cb} placeholder="New user name..." />
+            </td>
+            <td>
                 <button class="btn btn-success" onclick={add_user_cb}>{"Add user"}</button>
-            </div>
-        </div>
+            </td>
+        </tr>
     ));
 
-    html! { for rows }
+    html! {
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">{"Name"}</th>
+                    <th scope="col">{"Balance"}</th>
+                    <th scope="col">{"Login key"}</th>
+                    <th scope="col">{"Action"}</th>
+                </tr>
+            </thead>
+            <tbody>
+                { for rows }
+            </tbody>
+        </table>
+    }
 }
 
 #[derive(Properties, PartialEq)]
@@ -137,7 +154,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         let item_id = item.item.id;
 
         let item_state_component = match &item.state {
-            communication::ItemStateValue::Sellable => html!(<p>{"Item can be sold"}</p>),
+            communication::ItemStateValue::Sellable => html!(<span>{"Sellable"}</span>),
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => {
                 let reset_sale_status_cb = {
                     let send = props.send.clone();
@@ -148,7 +165,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
                 };
                 html! {
                     <>
-                        <p>{"Item was already sold to "}{buyer.user_name.clone()}{" for "}<MoneyDisplay money={sale_price} /></p>
+                        <span>{"Already sold to "}{buyer.user_name.clone()}{" for "}<MoneyDisplay money={sale_price} /></span>
                         <button class="btn btn-warning" onclick={reset_sale_status_cb}>{"Clear sale status"}</button>
                     </>
                 }
@@ -184,17 +201,20 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         };
 
         let row = html! {
-            <div class="card mb-3">
-                <div class="card-body">
+            <tr>
+                <td>
                     <TextInput prefill_value={item.item.name.clone()} onchange={commit_name_cb} />
-                    <div class="input-group mb-2">
-                        <span class="input-group-text">{"Initial price: "}</span>
-                        <NumberInput prefill_value={item.item.initial_price.to_string()} onchange={commit_initial_price_cb} min="0" max={Money::MAX.to_string()} step="1" />
-                    </div>
+                </td>
+                <td>
+                    <NumberInput prefill_value={item.item.initial_price.to_string()} onchange={commit_initial_price_cb} min="0" max={Money::MAX.to_string()} step="1" />
+                </td>
+                <td>
                     {item_state_component}
-                    <button class="btn btn-danger" onclick={delete_item_cb}>{"Delete item"}</button>
-                </div>
-            </div>
+                </td>
+                <td>
+                    <button class="btn btn-outline-danger" onclick={delete_item_cb}>{"Delete"}</button>
+                </td>
+            </tr>
         };
 
         rows.push(row);
@@ -223,13 +243,29 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         })
     };
     rows.push(html!(
-        <div class="card mb-3">
-            <div class="card-body">
+        <tr>
+            <td colspan="3">
                 <input class="form-control mb-2" type="text" value={(*new_item_name).clone()} oninput={new_item_name_edit_cb} placeholder="New item name..." />
+            </td>
+            <td>
                 <button class="btn btn-success" onclick={add_item_cb}>{"Add item"}</button>
-            </div>
-        </div>
+            </td>
+        </tr>
     ));
 
-    html! { for rows }
+    html! {
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">{"Name"}</th>
+                    <th scope="col">{"Initial price"}</th>
+                    <th scope="col">{"State"}</th>
+                    <th scope="col">{"Action"}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for rows}
+            </tbody>
+        </table>
+    }
 }

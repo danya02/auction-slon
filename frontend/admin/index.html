@@ -11,6 +11,38 @@
         body {
             height: 100%;
         }
+
+        /* https://stackoverflow.com/a/37084268/5936187 */
+        .hover-to-reveal-box {
+            -webkit-transition: all 0.3s ease-out;
+            -moz-transition: all 0.3s ease-out;
+            -o-transition: all 0.3s ease-out;
+            transition: all 0.3s ease-out;
+            border-style: solid;
+            border-radius: 8px;
+            border-width: 4px;
+            border-color: var(--bs-warning);
+        }
+
+        .hover-to-reveal-box>* {
+            -webkit-filter: blur(4px);
+            -moz-filter: blur(4px);
+            -o-filter: blur(4px);
+            -ms-filter: blur(4px);
+            filter: blur(4px);
+        }
+
+        .hover-to-reveal-box:hover {
+            border-width: 0px;
+        }
+
+        .hover-to-reveal-box:hover>* {
+            -webkit-filter: blur(0px);
+            -moz-filter: blur(0px);
+            -o-filter: blur(0px);
+            -ms-filter: blur(0px);
+            filter: blur(0px);
+        }
     </style>
 </head>
 

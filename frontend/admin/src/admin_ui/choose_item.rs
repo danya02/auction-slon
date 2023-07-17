@@ -28,7 +28,7 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
                     });
 
                     html! {
-                        <a href="#" class="btn btn-primary stretched-link" onclick={start_selling_cb}>{"Sell this"}</a>
+                        <a href="#" class="btn btn-primary" onclick={start_selling_cb}>{"Sell this"}</a>
                     }
                 } else {
                     html! {
@@ -37,23 +37,34 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
                 }
             }
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => html! {
-                <a href="#" class="btn btn-secondary disabled">{format!("Sold this to {} for ", buyer.user_name)}<MoneyDisplay money={sale_price} /></a>
+                <a href="#" class="btn btn-secondary disabled">{"Sold to "}{&buyer.user_name}{" for "}<MoneyDisplay money={sale_price} /></a>
             },
         };
 
         let item_html = html! {
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">{&item.item.name}</h5>
-                    <h6 class="card-subtitle">{"Initial price:"}<MoneyDisplay money={item.item.initial_price} /></h6>
-                    {action}
-                </div>
-            </div>
+            <tr>
+                <td>{&item.item.name}</td>
+                <td><MoneyDisplay money={item.item.initial_price} /></td>
+                <td>{action}</td>
+            </tr>
         };
 
         item_rows.push(item_html);
     }
-    let h: Html = item_rows.iter().cloned().collect();
-    // TODO: why is the clone() necessary???
-    h
+
+    html! {
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th scope="col">{"Name"}</th>
+                    <th scope="col">{"Initial price"}</th>
+                    <th>{"Action"}</th>
+                </tr>
+            </thead>
+            <tbody>
+                { for item_rows }
+            </tbody>
+        </table>
+
+    }
 }
