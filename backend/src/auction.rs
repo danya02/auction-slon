@@ -290,7 +290,7 @@ async fn auction_manager_inner(
                                         query!("UPDATE auction_item SET name=? WHERE id=?", name, id).execute(&mut tx).await?;
                                     }
                                     if let Some(price) = initial_price {
-                                        query!("UPDATE auction_item SET name=? WHERE initial_price=?", name, price).execute(&mut tx).await?;
+                                        query!("UPDATE auction_item SET initial_price=? WHERE id=?", price, id).execute(&mut tx).await?;
                                     }
                                     tx.commit().await?;
                                 }

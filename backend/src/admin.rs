@@ -90,6 +90,11 @@ pub async fn handle_socket(
                                             crate::auction::JapaneseAuctionEvent::NewPriceClockInterval { price_increase_per_100_seconds: new_rate }
                                         )
                                     ).await,
+                                    AdminClientMessage::SetJapaneseVisibilityMode(new_mode) => sync_handle.send_event(
+                                        AuctionEvent::JapaneseAuctionAction(
+                                            crate::auction::JapaneseAuctionEvent::NewArenaVisibilityMode(new_mode)
+                                        )
+                                    ).await,
                                     AdminClientMessage::ChangeUserName{id, new_name} => {
                                         sync_handle.send_event(
                                             AuctionEvent::EditUser { id: Some(id), name: Some(new_name), balance: None }

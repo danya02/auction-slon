@@ -1,5 +1,5 @@
-use common::components::MoneyDisplay;
-use communication::{admin_state::AdminState, AdminClientMessage, ItemState, WithTimestamp};
+use common::components::{MoneyDisplay, NumberInput};
+use communication::{admin_state::AdminState, AdminClientMessage, ItemState, Money, WithTimestamp};
 use yew::prelude::*;
 
 use super::SendToServer;
@@ -41,10 +41,21 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
             },
         };
 
+        let item_id = item.item.id;
+        let commit_initial_price_cb = {
+            let send = props.send.clone();
+            Callback::from(move |s: String| {
+                send.emit(AdminClientMessage::ChangeItemInitialPrice {
+                    id: item_id,
+                    new_price: s,
+                });
+            })
+        };
+
         let item_html = html! {
             <tr>
                 <td>{&item.item.name}</td>
-                <td><MoneyDisplay money={item.item.initial_price} /></td>
+                <td><NumberInput prefill_value={item.item.initial_price.to_string()} onchange={commit_initial_price_cb} min="0" max={Money::MAX.to_string()} step="1" /></td>
                 <td>{action}</td>
             </tr>
         };

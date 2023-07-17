@@ -3,7 +3,10 @@ use std::{sync::Arc, time::Duration};
 use communication::{
     auction::{
         actions::JapaneseAuctionAction,
-        state::{ActiveBidState, AuctionItem, AuctionState, BiddingState, JapaneseAuctionBidState},
+        state::{
+            ActiveBidState, ArenaVisibilityMode, AuctionItem, AuctionState, BiddingState,
+            JapaneseAuctionBidState,
+        },
     },
     Money, UserAccountData,
 };
@@ -28,6 +31,9 @@ pub enum JapaneseAuctionEvent {
     NewPriceClockInterval {
         price_increase_per_100_seconds: Money,
     },
+
+    /// An admin has changed the arena visibility mode.
+    NewArenaVisibilityMode(ArenaVisibilityMode),
 }
 
 pub async fn run_japanese_auction(
@@ -72,6 +78,8 @@ pub async fn run_japanese_auction(
     let mut arena = vec![];
     let arena_closes_for_entry = tokio::time::Instant::now() + Duration::from_secs(15);
     let mut arena_is_closed = false;
+
+    let mut arena_visibility_mode = ArenaVisibilityMode::Full;
 
     // This returns an Err when the item is successfully sold.
     // Just call this with ? whenever arena changes.
@@ -170,6 +178,7 @@ pub async fn run_japanese_auction(
                 currently_in_arena: arena.clone(),
                 current_price,
                 current_price_increase_per_100_seconds,
+                arena_visibility_mode,
             };
             state_tx
                 .send(AuctionState::Bidding(BiddingState {
@@ -210,9 +219,9 @@ pub async fn run_japanese_auction(
 
                                 // Publish the current state (price, mode and arena members)
                                 let bid_state = if arena_is_closed {
-                                    JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds }
+                                    JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 } else {
-                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds }
+                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 };
                                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -224,9 +233,9 @@ pub async fn run_japanese_auction(
 
                                 // Publish the current state (price, mode and arena members)
                                 let bid_state = if arena_is_closed {
-                                    JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds }
+                                    JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 } else {
-                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds }
+                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 };
                                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -240,14 +249,23 @@ pub async fn run_japanese_auction(
                         price_increase_interval = interval_at(Instant::now() + (price_increase_interval.period()/2), new_period);
                         current_price_increase_per_100_seconds = price_increase_per_100_seconds;
 
-                        // Also, we need to send an update of the state now, so that the button receives the new change\
+                        // Also, we need to send an update of the state now, so that the button receives the new change
                         let bid_state = if arena_is_closed {
-                            JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds }
+                            JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         } else {
-                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds }
+                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         };
                         state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
+                    },
+                    JapaneseAuctionEvent::NewArenaVisibilityMode(mode) => {
+                        arena_visibility_mode = mode;
+                        let bid_state = if arena_is_closed {
+                            JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                        } else {
+                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                        };
+                        state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
                     },
                 }
             }
@@ -270,7 +288,7 @@ pub async fn run_japanese_auction(
 
                 // Publish the current auction state.
                 // It is ClockRunning, because we are increasing the price.
-                let bid_state = JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds };
+                let bid_state = JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode };
 
                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -282,7 +300,7 @@ pub async fn run_japanese_auction(
                 // ONLY IF the arena is currently open -> arena closing timer is counting down
                 // (if the arena is closed, this is handled in the price_increase_interval tick, where we send a message on every price change)
                 if !arena_is_closed {
-                    let bid_state = JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds };
+                    let bid_state = JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode };
                     state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
                 }
 

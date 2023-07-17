@@ -7,7 +7,7 @@ use std::{
 use admin_state::AdminState;
 use auction::{
     actions::JapaneseAuctionAction,
-    state::{AuctionItem, AuctionState},
+    state::{ArenaVisibilityMode, AuctionItem, AuctionState},
 };
 use serde::{Deserialize, Serialize};
 
@@ -181,6 +181,9 @@ pub enum AdminClientMessage {
     /// If a Japanese auction is running, change its clock rate.
     /// The clock rate is how much money the price increases per 100 seconds.
     SetJapaneseClockRate(Money),
+
+    /// If a Japanese auction is running, change its arena visibility mode.
+    SetJapaneseVisibilityMode(ArenaVisibilityMode),
 
     /// Change a user's name
     ChangeUserName { id: i64, new_name: String },

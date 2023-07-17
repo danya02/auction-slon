@@ -3,7 +3,7 @@ use common::{
     layout::Container,
 };
 use communication::{
-    auction::state::{BiddingState, JapaneseAuctionBidState},
+    auction::state::{ArenaVisibilityMode, BiddingState, JapaneseAuctionBidState},
     AdminClientMessage, UserAccountData,
 };
 use yew::prelude::*;
@@ -83,12 +83,43 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 })
             };
 
+            // These three callbacks set the visibility mode.
+            let set_full_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
+                        ArenaVisibilityMode::Full,
+                    ));
+                })
+            };
+            let set_only_number_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
+                        ArenaVisibilityMode::OnlyNumber,
+                    ));
+                })
+            };
+
+            let set_nothing_cb = {
+                let send = props.send.clone();
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
+                        ArenaVisibilityMode::Nothing,
+                    ));
+                })
+            };
+
             match state {
                 JapaneseAuctionBidState::EnterArena {
                     currently_in_arena,
                     seconds_until_arena_closes,
                     current_price,
                     current_price_increase_per_100_seconds,
+                    arena_visibility_mode,
                 } => {
                     html! {
                         <>
@@ -103,6 +134,13 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                                 <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
                             </p>
 
+                            <p>{"Members can see the following info about the arena:"}</p>
+                            <div class="btn-group">
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Full info"}</button>
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Only number of members"}</button>
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Nothing"}</button>
+                            </div>
+
                             <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
                                 <h3>{currently_in_arena.len()}{" members in arena"}</h3>
                                 <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
@@ -114,6 +152,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                     currently_in_arena,
                     current_price,
                     current_price_increase_per_100_seconds,
+                    arena_visibility_mode,
                 } => html! {
                     <>
                         <h1>{"Arena is now closed"}</h1>
@@ -126,6 +165,13 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                             <button class="btn btn-danger" onclick={clock_rate_down_cb}>{"-"}</button>
                             <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
                         </p>
+
+                        <p>{"Members can see the following info about the arena:"}</p>
+                        <div class="btn-group">
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Full info"}</button>
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Only number of members"}</button>
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Nothing"}</button>
+                        </div>
 
                         <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                             <h3>{currently_in_arena.len()}{" members in arena"}</h3>

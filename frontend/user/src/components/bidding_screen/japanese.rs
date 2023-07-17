@@ -44,6 +44,8 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         }
     };
 
+    let arena_mode = props.state.get_arena_visibility_mode();
+
     let pressed = use_state(|| false);
     let changed_recently = use_state(|| false);
     let changed_at = use_state(|| performance.now());
@@ -156,12 +158,51 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
     let header_line = match &props.state {
         JapaneseAuctionBidState::EnterArena {
             seconds_until_arena_closes,
+            current_price,
             ..
         } => {
-            html!(<h1>{format!("Press and hold to bet: {seconds_until_arena_closes:.1} left")}</h1>)
+            html!(
+                <>
+                    <h1>{format!("Hold button to bet: {seconds_until_arena_closes:.1} left")}</h1>
+                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} /></h2>
+                </>
+            )
         }
         JapaneseAuctionBidState::ClockRunning { current_price, .. } => {
-            html!(<h1>{"Release if too expensive: "}<MoneyDisplay money={current_price} /></h1>)
+            if locked_out_of_arena {
+                html!(
+                    <>
+                        <h1>{"Current price: "}<MoneyDisplay money={current_price} /></h1>
+                        <h2>{"You are no longer taking part"}</h2>
+                    </>
+                )
+            } else {
+                html!(
+                    <>
+                        <h1>{"Current price: "}<MoneyDisplay money={current_price} /></h1>
+                        <h2>{"Hold to keep betting, release to abandon"}</h2>
+                    </>
+                )
+            }
+        }
+    };
+
+    let arena_info = match arena_mode {
+        communication::auction::state::ArenaVisibilityMode::Full => html!(
+            <>
+                <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                <UserAccountTable accounts={currently_in_arena.to_vec()} />
+            </>
+        ),
+        communication::auction::state::ArenaVisibilityMode::OnlyNumber => html!(
+            <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+        ),
+        communication::auction::state::ArenaVisibilityMode::Nothing => {
+            if me_in_arena {
+                html!(<h3>{"You are in arena"}</h3>)
+            } else {
+                html!(<h3>{"You are not in arena"}</h3>)
+            }
         }
     };
 
@@ -181,8 +222,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             </div>
 
             <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
-                <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                <UserAccountTable accounts={currently_in_arena.to_vec()} />
+                {arena_info}
             </div>
         </VerticalStack>
     }

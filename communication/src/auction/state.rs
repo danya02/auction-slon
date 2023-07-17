@@ -86,6 +86,7 @@ pub enum JapaneseAuctionBidState {
     /// The buyers are entering the arena
     EnterArena {
         currently_in_arena: Vec<UserAccountData>,
+        arena_visibility_mode: ArenaVisibilityMode,
         current_price: Money,
         current_price_increase_per_100_seconds: Money,
         seconds_until_arena_closes: f32,
@@ -94,9 +95,26 @@ pub enum JapaneseAuctionBidState {
     /// The buyers can now exit the arena; last person standing wins the item
     ClockRunning {
         currently_in_arena: Vec<UserAccountData>,
+        arena_visibility_mode: ArenaVisibilityMode,
         current_price: Money,
         current_price_increase_per_100_seconds: Money,
     },
+}
+
+/// How to show the arena in the user's UI.
+///
+/// This is not theoretically secure, because the arena needs to be in the message
+/// for other technical reasons, but it is effective for mobile users.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub enum ArenaVisibilityMode {
+    /// Can see the list of people in the arena, including balance
+    Full,
+
+    /// Can see the number of people in the arena, but nothing else.
+    OnlyNumber,
+
+    /// Cannot see any info about the arena, apart from whether they are in it or not.
+    Nothing,
 }
 
 impl JapaneseAuctionBidState {
@@ -121,6 +139,19 @@ impl JapaneseAuctionBidState {
                 current_price_increase_per_100_seconds,
                 ..
             } => current_price_increase_per_100_seconds,
+        }
+    }
+
+    pub fn get_arena_visibility_mode(&self) -> ArenaVisibilityMode {
+        *match self {
+            JapaneseAuctionBidState::EnterArena {
+                arena_visibility_mode,
+                ..
+            } => arena_visibility_mode,
+            JapaneseAuctionBidState::ClockRunning {
+                arena_visibility_mode,
+                ..
+            } => arena_visibility_mode,
         }
     }
 }
