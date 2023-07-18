@@ -3,7 +3,8 @@ use std::time::Duration;
 use axum::extract::ws::{close_code, Message, WebSocket};
 
 use communication::{
-    auction::state::AuctionState, decode, encode, ServerMessage, UserClientMessage, WithTimestamp,
+    auction::state::AuctionState, decode, encode, ServerMessage, UserAccountData,
+    UserClientMessage, WithTimestamp,
 };
 use tokio::time::interval;
 #[allow(unused_imports)]
@@ -102,7 +103,12 @@ pub async fn handle_socket(
             },
             _ = sync_handle.auction_members.changed() => {
                 let latest_state: WithTimestamp<_> = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect::<Vec<_>>().into();
+                // Extract the state of the current user, and send that in addition to the info about everyone.
+                user = latest_state.data.iter().find(|i: &&UserAccountData| i.id == user.id).expect("Connected user disappeared from auction members?").clone();
                 send!(socket, ServerMessage::AuctionMembers(latest_state));
+                let out_user = user.clone();
+                send!(socket, ServerMessage::YourAccount(out_user));
+
             },
 
             _ = refresh_interval.tick() => {

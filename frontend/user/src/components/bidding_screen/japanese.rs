@@ -25,16 +25,18 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         .performance()
         .expect("performance should be available");
 
-    let repress_delay = 5000.0;
+    let repress_delay = 1500.0;
 
-    let arena_is_open = matches!(props.state, JapaneseAuctionBidState::EnterArena { .. });
+    //let arena_is_open = matches!(props.state, JapaneseAuctionBidState::EnterArena { .. });
     let me_in_arena = props
         .state
         .get_arena()
         .iter()
         .any(|i| props.my_user_id == i.id);
     let locked_out_of_arena = match &props.state {
-        JapaneseAuctionBidState::EnterArena { .. } => false, // If arena is open, we are not locked out
+        JapaneseAuctionBidState::EnterArena { current_price, .. } => {
+            current_price > &props.my_balance
+        } // If arena is open, we are locked out iff the current (initial) price is too expensive
         JapaneseAuctionBidState::ClockRunning {
             currently_in_arena, ..
         } => {
@@ -76,12 +78,13 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
                 }));
         }
 
-        // If the button is pressed, but we are not in the arena, and the arena is open,
+        // If the button is pressed, but we are not in the arena, and we could enter the arena,
         // then we want to enter the arena.
         // As before, the loop will stop as soon as the change is acknowledged.
         // (This also helps when the admin kicks us from the arena, but we still want to be there.
         //  If the admin kicks us during the re-press countdown, we do nothing.)
-        if *pressed && !me_in_arena && arena_is_open {
+        // Also: if we are locked out because we don't have enough money, we'll not be able to enter here.
+        if *pressed && !me_in_arena && !locked_out_of_arena {
             props
                 .send
                 .emit(encode(&UserClientMessage::JapaneseAuctionAction {
@@ -164,7 +167,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             html!(
                 <>
                     <h1>{format!("Hold button to bet: {seconds_until_arena_closes:.1} left")}</h1>
-                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} /></h2>
+                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} />{"/ You have:"}<MoneyDisplay money={props.my_balance}/></h2>
                 </>
             )
         }
@@ -215,7 +218,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             // so it must not contain any text or selectable items.
             <div
                 onmousedown={down} onmouseup={up} ontouchstart={downtouch} ontouchend={uptouch.clone()} ontouchcancel={uptouch}
-                style="width: 50vmin; height: 50vmin; border-radius: 5vmin;" class={classes!("unselectable", "bg-danger", if *pressed {"shadow-lg"} else {"shadow-sm"})}>
+                style="width: 50vmin; height: 50vmin; border-radius: 5vmin;" class={classes!("unselectable", "bg-danger", if *pressed {"shadow-sm"} else {"shadow-lg"})}>
 
                 // This is the progress bar div, which shrinks rapidly when the button is released to give a chance to re-press it.
                 <div style={pb_style} />
