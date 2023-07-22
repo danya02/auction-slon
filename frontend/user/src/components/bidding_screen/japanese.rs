@@ -3,8 +3,11 @@ use common::{
     layout::VerticalStack,
 };
 use communication::{
-    auction::{actions::JapaneseAuctionAction, state::JapaneseAuctionBidState},
-    encode, Money, UserClientMessage,
+    auction::{
+        actions::JapaneseAuctionAction,
+        state::{JapaneseAuctionBidState, Sponsorship},
+    },
+    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage,
 };
 use yew::prelude::*;
 use yew_hooks::*;
@@ -13,9 +16,10 @@ use yew_hooks::*;
 pub struct JapaneseAuctionBidInputProps {
     pub item_id: i64,
     pub state: JapaneseAuctionBidState,
-    pub my_user_id: i64,
-    pub my_balance: Money,
     pub send: Callback<Vec<u8>>,
+    pub my_account: UserAccountDataWithSecrets,
+    pub users: Vec<UserAccountData>,
+    pub sponsorships: Vec<Sponsorship>,
 }
 
 #[function_component]
@@ -27,22 +31,41 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
 
     let repress_delay = 1500.0;
 
+    let available_balance = use_state(|| 0);
+    {
+        let available_balance = available_balance.clone();
+        use_effect_with_deps(
+            move |(user_id, users, sponsorships)| {
+                available_balance.set(Sponsorship::resolve_available_balance(
+                    *user_id,
+                    &users,
+                    &sponsorships,
+                ));
+            },
+            (
+                props.my_account.id,
+                props.users.clone(),
+                props.sponsorships.clone(),
+            ),
+        );
+    }
+
     //let arena_is_open = matches!(props.state, JapaneseAuctionBidState::EnterArena { .. });
     let me_in_arena = props
         .state
         .get_arena()
         .iter()
-        .any(|i| props.my_user_id == i.id);
+        .any(|i| props.my_account.id == i.id);
     let locked_out_of_arena = match &props.state {
         JapaneseAuctionBidState::EnterArena { current_price, .. } => {
-            current_price > &props.my_balance
+            current_price > &*available_balance
         } // If arena is open, we are locked out iff the current (initial) price is too expensive
         JapaneseAuctionBidState::ClockRunning {
             currently_in_arena, ..
         } => {
             !currently_in_arena // If clock is running, we are locked out when we are not in the arena anymore
                 .iter()
-                .any(|i| i.id == props.my_user_id)
+                .any(|i| i.id == props.my_account.id)
         }
     };
 
@@ -164,10 +187,15 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             current_price,
             ..
         } => {
+            let hold = if let Some(s) = seconds_until_arena_closes {
+                format!("Hold button to bet: {s:.1} left")
+            } else {
+                String::from("Hold button to bet")
+            };
             html!(
                 <>
-                    <h1>{format!("Hold button to bet: {seconds_until_arena_closes:.1} left")}</h1>
-                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} />{"/ You have:"}<MoneyDisplay money={props.my_balance}/></h2>
+                    <h1>{hold}</h1>
+                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} />{"/ You can use:"}<MoneyDisplay money={*available_balance}/></h2>
                 </>
             )
         }
@@ -183,7 +211,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
                 html!(
                     <>
                         <h1>{"Current price: "}<MoneyDisplay money={current_price} /></h1>
-                        <h2>{"Hold to keep betting, release to abandon"}</h2>
+                        <h2>{"Hold to keep betting, release to abandon"}{"/ You can use:"}<MoneyDisplay money={*available_balance}/></h2>
                     </>
                 )
             }
@@ -193,18 +221,18 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
     let arena_info = match arena_mode {
         communication::auction::state::ArenaVisibilityMode::Full => html!(
             <>
-                <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                <UserAccountTable accounts={currently_in_arena.to_vec()} />
+                <h3>{currently_in_arena.len()}{" members taking part"}</h3>
+                <UserAccountTable accounts={currently_in_arena.to_vec()} users={props.users.clone()} sponsorships={props.sponsorships.clone()}/>
             </>
         ),
         communication::auction::state::ArenaVisibilityMode::OnlyNumber => html!(
-            <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+            <h3>{currently_in_arena.len()}{" members taking part"}</h3>
         ),
         communication::auction::state::ArenaVisibilityMode::Nothing => {
             if me_in_arena {
-                html!(<h3>{"You are in arena"}</h3>)
+                html!(<h3>{"You are taking part"}</h3>)
             } else {
-                html!(<h3>{"You are not in arena"}</h3>)
+                html!(<h3>{"You are not taking part"}</h3>)
             }
         }
     };

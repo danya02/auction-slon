@@ -1,5 +1,8 @@
 use common::components::MoneyDisplay;
-use communication::{encode, Money, UserClientMessage};
+use communication::{
+    auction::state::Sponsorship, encode, Money, UserAccountData, UserAccountDataWithSecrets,
+    UserClientMessage,
+};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -7,14 +10,36 @@ pub struct EnglishAuctionBidInputProps {
     pub item_id: i64,
     pub current_bid: Money,
     pub increment: Money,
-    pub my_balance: Money,
+    pub my_account: UserAccountDataWithSecrets,
+    pub users: Vec<UserAccountData>,
+    pub sponsorships: Vec<Sponsorship>,
     pub seconds_left: f32,
+    pub max_millis_until_commit: u128,
     pub send: Callback<Vec<u8>>,
 }
 
 #[function_component]
 pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
     let selected_bid = use_state_eq(|| props.current_bid);
+
+    let available_balance = use_state(|| 0);
+    {
+        let available_balance = available_balance.clone();
+        use_effect_with_deps(
+            move |(user_id, users, sponsorships)| {
+                available_balance.set(Sponsorship::resolve_available_balance(
+                    *user_id,
+                    &users,
+                    &sponsorships,
+                ));
+            },
+            (
+                props.my_account.id,
+                props.users.clone(),
+                props.sponsorships.clone(),
+            ),
+        );
+    }
 
     {
         let selected_bid = selected_bid.clone();
@@ -44,12 +69,12 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
         })
     };
 
-    let send_btn = if *selected_bid > props.my_balance {
-        html!(<button class="btn btn-info-outline" disabled={true}>{"Cannot afford!"}</button>)
+    let send_btn = if *selected_bid > *available_balance {
+        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Cannot afford!"}</button>)
     } else if *selected_bid <= props.current_bid {
-        html!(<button class="btn btn-info-outline" disabled={true}>{"Too low!"}</button>)
+        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Too low!"}</button>)
     } else {
-        html!(<button class="btn btn-info" onclick={send_cb}>{"Send bid: "}<MoneyDisplay money={*selected_bid} /></button>)
+        html!(<button class="btn btn-lg btn-info" onclick={send_cb}>{"Send bid: "}<MoneyDisplay money={*selected_bid} /></button>)
     };
     let current_val = *selected_bid;
 
@@ -69,8 +94,8 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
         if current_val < (props.current_bid + props.increment) {
             (props.current_bid + props.increment) - current_val
         }
-        // If the current value is equal to my balance, cannot increase it.
-        else if current_val >= props.my_balance {
+        // If the current value is equal to my available balance, cannot increase it.
+        else if current_val >= *available_balance {
             0
         }
         // Otherwise, can increase it by any amount
@@ -95,15 +120,27 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
         })
     };
 
-    let max_time = 10.0;
+    let max_time = props.max_millis_until_commit as f32 / 1000.0;
     let seconds_left = props.seconds_left;
     let percent_left = (seconds_left / max_time) * 100.0;
-    let pb_style = format!("width: {percent_left:.0}%;");
-    let pb_text = format!("Time left: {seconds_left:.1}s");
+    let percent_now = 100.0 - percent_left;
+    let (pb_first_style, pb_second_style, pb_text) = if seconds_left < max_time {
+        (
+            format!("width: {percent_left:.0}%;"),
+            format!("width: {percent_now:.0}%;"),
+            format!("{seconds_left:.1}s"),
+        )
+    } else {
+        (
+            String::from("width: 100%;"),
+            String::from("width: 0%;"),
+            String::from("No bid yet..."),
+        )
+    };
 
     html! {
         <>
-            <div class="input-group mb-3" role="group">
+            <div class="input-group input-group-lg mb-3" role="group">
                 <button disabled={value_down==0} class={classes!("btn", if value_down==0 {"btn-danger-outline"} else {"btn-danger"})} onclick={bid_down}>{"-"}<MoneyDisplay money={value_down} /></button>
                 <span class="input-group-text"><MoneyDisplay money={*selected_bid} /></span>
                 <button disabled={value_up==0} class={classes!("btn", if value_up==0 {"btn-success-outline"} else {"btn-success"})} onclick={bid_up}>{"+"}<MoneyDisplay money={value_up} /></button>
@@ -111,8 +148,16 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
             <div class="d-grid mb-3">
                 {send_btn}
             </div>
-            <div class="progress mb-3">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" style={pb_style}>{pb_text}</div>
+            <div class="progress-stacked mb-3">
+                <div class="progress" style={pb_first_style}>
+                    <div class="progress-bar progress-bar-striped progress-bar-animated">
+                    </div>
+                </div>
+                <div class="progress" style={pb_second_style}>
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger">
+                        {pb_text}
+                    </div>
+                </div>
             </div>
         </>
     }

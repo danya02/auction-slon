@@ -1,6 +1,6 @@
-use communication::Money;
+use communication::{auction::state::SponsorshipStatus, Money, UserSaleMode};
 
-use super::JapaneseAuctionEvent;
+use super::{EnglishAuctionEvent, JapaneseAuctionEvent};
 
 /// Represents events that can change the progress of the auction.
 #[derive(Debug)]
@@ -17,12 +17,8 @@ pub enum AuctionEvent {
     /// An admin has requested that a Japanese auction be used to sell the given item.
     RunJapaneseAuction(i64),
 
-    /// A user has placed a bid in an English auction that's in progress.
-    BidInEnglishAuction {
-        user_id: i64,
-        item_id: i64,
-        bid_amount: Money,
-    },
+    /// A user has done an action on the English auction.
+    EnglishAuctionAction(EnglishAuctionEvent),
 
     /// A user has entered or exited the Japanese auction's arena.
     JapaneseAuctionAction(JapaneseAuctionEvent),
@@ -62,8 +58,32 @@ pub enum AuctionEvent {
     /// either add or subtract the balance there,
     /// so that the user has the given amount of money,
     /// or the holding account has zero.
-    HoldingAccountTransfer {
+    HoldingAccountTransfer { user_id: i64, new_balance: Money },
+
+    /// Change whether a user accepts new sponsorships.
+    SetIsAcceptingSponsorships {
         user_id: i64,
-        new_balance: Money,
+        is_accepting_sponsorships: bool,
     },
+
+    SetSaleMode {
+        user_id: i64,
+        sale_mode: UserSaleMode,
+    },
+
+    /// A user is changing the state of a sponsorship
+    /// (this is ignored if it does not follow policy)
+    UpdateSponsorship {
+        actor_id: i64,
+        sponsorship_id: i64,
+        new_status: Option<SponsorshipStatus>,
+        new_amount: Option<Money>,
+    },
+
+    /// A user, if has sponsorships turned on, is requesting a new code for joining the sponsorship.
+    RegenerateSponsorshipCode { user_id: i64 },
+
+    /// A user is trying to create a sponsorship in which they are the donor, using the given code.
+    /// If the code doesn't exist, nothing happens.
+    TryActivateSponsorshipCode { user_id: i64, code: String },
 }

@@ -3,8 +3,9 @@ use common::{
     layout::{Container, HorizontalStack, VerticalStack},
 };
 use communication::{
-    admin_state::AdminState, auction::state::AuctionState, AdminClientMessage, ItemState,
-    UserAccountDataWithSecrets, WithTimestamp,
+    admin_state::AdminState,
+    auction::state::{AuctionState, Sponsorship},
+    AdminClientMessage, ItemState, UserAccountDataWithSecrets, WithTimestamp,
 };
 use yew::prelude::*;
 
@@ -27,6 +28,7 @@ pub struct AdminUiProps {
     pub admin_state: WithTimestamp<AdminState>,
     pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
     pub items: WithTimestamp<Vec<ItemState>>,
+    pub sponsorships: WithTimestamp<Vec<Sponsorship>>,
     pub send: SendToServer,
 }
 
@@ -101,7 +103,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
             html!(<ConfirmItemToSell item={item.clone()} send={props.send.clone()} />)
         }
         AuctionState::Bidding(bid_state) => {
-            html!(<ShowBidProgress bid_state={bid_state.clone()} send={props.send.clone()} />)
+            html!(<ShowBidProgress bid_state={bid_state.clone()} send={props.send.clone()} users={props.users.data.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={props.sponsorships.data.clone()}/>)
         }
         AuctionState::SoldToSomeoneElse { .. } => unreachable!(),
         AuctionState::SoldToYou { .. } => unreachable!(),
@@ -110,8 +112,9 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
             sold_for,
             sold_to,
             confirmation_code,
+            contributions,
         } => {
-            html!(<ItemSoldDisplay item={item.clone()} sold_to={sold_to.clone()} sold_for={*sold_for} confirmation_code={confirmation_code.clone()} send={props.send.clone()} />)
+            html!(<ItemSoldDisplay item={item.clone()} sold_to={sold_to.clone()} sold_for={*sold_for} confirmation_code={confirmation_code.clone()} send={props.send.clone()} contributions={contributions.clone()} />)
         }
     };
 

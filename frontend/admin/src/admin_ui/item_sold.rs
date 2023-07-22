@@ -12,6 +12,7 @@ pub struct ItemSoldDisplayProps {
     pub sold_for: Money,
     pub confirmation_code: String,
     pub send: SendToServer,
+    pub contributions: Vec<(UserAccountData, Money)>,
 }
 
 #[function_component]

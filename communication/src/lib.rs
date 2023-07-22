@@ -7,7 +7,7 @@ use std::{
 use admin_state::AdminState;
 use auction::{
     actions::JapaneseAuctionAction,
-    state::{ArenaVisibilityMode, AuctionItem, AuctionState},
+    state::{ArenaVisibilityMode, AuctionItem, AuctionState, Sponsorship, SponsorshipStatus},
 };
 use serde::{Deserialize, Serialize};
 
@@ -41,10 +41,43 @@ pub enum LoginRequest {
 pub type Money = u32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum UserSaleMode {
+    /// User is making bids in the auction
+    Bidding,
+
+    /// User is sharing money with other bidders
+    Sponsoring,
+}
+
+impl<T> From<T> for UserSaleMode
+where
+    T: num::traits::Zero,
+{
+    fn from(value: T) -> Self {
+        if value.is_zero() {
+            Self::Bidding
+        } else {
+            Self::Sponsoring
+        }
+    }
+}
+
+impl From<UserSaleMode> for u8 {
+    fn from(val: UserSaleMode) -> Self {
+        match val {
+            UserSaleMode::Bidding => 0,
+            UserSaleMode::Sponsoring => 1,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct UserAccountData {
     pub id: i64,
     pub user_name: String,
     pub balance: Money,
+    pub sale_mode: UserSaleMode,
+    pub is_accepting_sponsorships: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -53,30 +86,41 @@ pub struct UserAccountDataWithSecrets {
     pub user_name: String,
     pub balance: Money,
     pub login_key: String,
+    pub sale_mode: UserSaleMode,
+    pub sponsorship_code: Option<String>,
 }
 
-impl From<UserAccountDataWithSecrets> for UserAccountData {
-    fn from(value: UserAccountDataWithSecrets) -> Self {
+impl From<&UserAccountDataWithSecrets> for UserAccountData {
+    fn from(value: &UserAccountDataWithSecrets) -> Self {
         #[allow(unused_variables)]
         let UserAccountDataWithSecrets {
             id,
             user_name,
             balance,
             login_key,
-        } = value;
+            sale_mode,
+            sponsorship_code,
+        } = value.clone();
         UserAccountData {
             id,
             user_name,
             balance,
+            sale_mode,
+            is_accepting_sponsorships: sponsorship_code.is_some(),
         }
     }
 }
 
+pub fn forget_user_secrets(src: Vec<UserAccountDataWithSecrets>) -> Vec<UserAccountData> {
+    src.iter().map(|u| u.into()).collect()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ServerMessage {
-    YourAccount(UserAccountData),
+    YourAccount(UserAccountDataWithSecrets),
     AuctionMembers(WithTimestamp<Vec<UserAccountData>>),
     AuctionState(WithTimestamp<AuctionState>),
+    SponsorshipState(WithTimestamp<Vec<Sponsorship>>),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -85,6 +129,7 @@ pub enum AdminServerMessage {
     AuctionState(WithTimestamp<AuctionState>),
     ItemStates(WithTimestamp<Vec<ItemState>>),
     AdminState(WithTimestamp<AdminState>),
+    SponsorshipState(WithTimestamp<Vec<Sponsorship>>),
 }
 
 /// A wrapper type that adds a timestamp to the data.
@@ -216,6 +261,14 @@ pub enum AdminClientMessage {
     /// so that the user account has the given amount of money.
     /// If the holding account does not have enough, zero it out.
     TransferAcrossHolding { user_id: i64, new_balance: Money },
+
+    /// If the current auction is English, change the time before a bid is locked in.
+    /// Extend the time remaining in the current bid.
+    SetEnglishAuctionCommitPeriod { new_period_ms: u128 },
+
+    /// If the current auction is Japanese, and the arena isn't closing yet,
+    /// start closing the arena.
+    StartClosingJapaneseArena,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -228,4 +281,16 @@ pub enum UserClientMessage {
         item_id: i64,
         action: JapaneseAuctionAction,
     },
+    SetIsAcceptingSponsorships(bool),
+    SetSaleMode(UserSaleMode),
+    TryActivateSponsorshipCode(String),
+    SetSponsorshipBalance {
+        sponsorship_id: i64,
+        balance: Money,
+    },
+    SetSponsorshipStatus {
+        sponsorship_id: i64,
+        status: SponsorshipStatus,
+    },
+    RegenerateSponsorshipCode,
 }

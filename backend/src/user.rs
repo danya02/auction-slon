@@ -3,14 +3,17 @@ use std::time::Duration;
 use axum::extract::ws::{close_code, Message, WebSocket};
 
 use communication::{
-    auction::state::AuctionState, decode, encode, ServerMessage, UserAccountData,
-    UserClientMessage, WithTimestamp,
+    auction::state::AuctionState, decode, encode, forget_user_secrets, ServerMessage,
+    UserAccountData, UserAccountDataWithSecrets, UserClientMessage, WithTimestamp,
 };
 use tokio::time::interval;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::{auction::AuctionSyncHandle, close_socket};
+use crate::{
+    auction::{AuctionEvent, AuctionSyncHandle},
+    close_socket,
+};
 
 macro_rules! send {
     ($s:expr, $v:expr) => {
@@ -73,10 +76,39 @@ pub async fn handle_socket(
                                 let msg: UserClientMessage = decode(&data)?;
                                 match msg {
                                     UserClientMessage::BidInEnglishAuction { item_id, bid_amount } => {
-                                        sync_handle.send_event(crate::auction::AuctionEvent::BidInEnglishAuction { user_id: user.id, item_id, bid_amount }).await;
+                                        sync_handle.send_event(AuctionEvent::EnglishAuctionAction(crate::auction::EnglishAuctionEvent::BidPlaced { bidder_id: user.id, bid_amount, item_id})).await;
                                     },
                                     UserClientMessage::JapaneseAuctionAction { item_id, action } => {
-                                        sync_handle.send_event(crate::auction::AuctionEvent::JapaneseAuctionAction(crate::auction::JapaneseAuctionEvent::UserAction { user_id: user.id, item_id, action })).await;
+                                        sync_handle.send_event(AuctionEvent::JapaneseAuctionAction(crate::auction::JapaneseAuctionEvent::UserAction { user_id: user.id, item_id, action })).await;
+                                    },
+                                    UserClientMessage::SetIsAcceptingSponsorships(state) => {
+                                        sync_handle.send_event(AuctionEvent::SetIsAcceptingSponsorships { user_id: user.id, is_accepting_sponsorships: state }).await;
+                                    },
+                                    UserClientMessage::SetSaleMode(sale_mode) => {
+                                        sync_handle.send_event(AuctionEvent::SetSaleMode{ user_id: user.id, sale_mode }).await;
+                                    },
+                                    UserClientMessage::TryActivateSponsorshipCode(code) => {
+                                        sync_handle.send_event(AuctionEvent::TryActivateSponsorshipCode { user_id: user.id, code }).await;
+                                    },
+                                    UserClientMessage::SetSponsorshipBalance { sponsorship_id, balance } => {
+                                        sync_handle.send_event(AuctionEvent::UpdateSponsorship{
+                                            actor_id: user.id,
+                                            sponsorship_id,
+                                            new_amount: Some(balance),
+                                            new_status: None,
+                                        }).await;
+                                    },
+                                    UserClientMessage::SetSponsorshipStatus { sponsorship_id, status } => {
+                                        sync_handle.send_event(AuctionEvent::UpdateSponsorship{
+                                            actor_id: user.id,
+                                            sponsorship_id,
+                                            new_amount: None,
+                                            new_status: Some(status),
+                                        }).await;
+                                    },
+
+                                    UserClientMessage::RegenerateSponsorshipCode => {
+                                        sync_handle.send_event(AuctionEvent::RegenerateSponsorshipCode { user_id: user.id}).await;
                                     },
                                 }
                             },
@@ -90,11 +122,11 @@ pub async fn handle_socket(
                 let latest_state = sync_handle.auction_state.borrow().clone();
                 // Map SoldToMember to SoldToYou or SoldToSomeoneElse
                 let latest_state = match latest_state {
-                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code } => {
+                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code, contributions } => {
                         if sold_to.id == user.id {
-                            AuctionState::SoldToYou { item, sold_for, confirmation_code }
+                            AuctionState::SoldToYou { item, sold_for, confirmation_code, contributions }
                         } else {
-                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for }
+                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for, contributions }
                         }
                     },
                     other => other
@@ -102,16 +134,21 @@ pub async fn handle_socket(
                 send!(socket, ServerMessage::AuctionState(latest_state.into()));
             },
             _ = sync_handle.auction_members.changed() => {
-                let latest_state: WithTimestamp<_> = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect::<Vec<_>>().into();
+                let latest_state_with_secrets: Vec<UserAccountDataWithSecrets> = sync_handle.auction_members.borrow().clone();
                 // Extract the state of the current user, and send that in addition to the info about everyone.
-                user = latest_state.data.iter().find(|i: &&UserAccountData| i.id == user.id).expect("Connected user disappeared from auction members?").clone();
-                send!(socket, ServerMessage::AuctionMembers(latest_state));
-                let out_user = user.clone();
-                send!(socket, ServerMessage::YourAccount(out_user));
+                user = latest_state_with_secrets.iter().find(|i: &&UserAccountDataWithSecrets| i.id == user.id).expect("Connected user disappeared from auction members?").clone();
+                send!(socket, ServerMessage::YourAccount(user.clone()));
+                send!(socket, ServerMessage::AuctionMembers(forget_user_secrets(latest_state_with_secrets).into()));
 
             },
+            _ = sync_handle.sponsorship_state.changed() => {
+                let latest_state = sync_handle.sponsorship_state.borrow().clone();
+                send!(socket, ServerMessage::SponsorshipState(latest_state.into()));
+            },
+
 
             _ = refresh_interval.tick() => {
+                /*
                 user = match sync_handle.get_member_by_id(user.id).await {
                     None => {
                         error!("User ID disappeared while program was running");
@@ -124,10 +161,11 @@ pub async fn handle_socket(
                         return Ok(());
                     }
                     Some(user) => user,
-                };
+                };*/
 
                 send!(socket, ServerMessage::YourAccount(user.clone()));
-                let members: WithTimestamp<_> = sync_handle.auction_members.borrow().iter().map(|i| i.clone().into()).collect::<Vec<_>>().into();
+                let members: Vec<UserAccountData> = forget_user_secrets(sync_handle.auction_members.borrow().clone());
+                let members: WithTimestamp<_> = members.into();
                 send!(socket, ServerMessage::AuctionMembers(members));
 
                 // Also resend the auction state, just in case it were lost.
@@ -135,17 +173,18 @@ pub async fn handle_socket(
                 let latest_state = sync_handle.auction_state.borrow().clone();
                 // Map SoldToMember to SoldToYou or SoldToSomeoneElse
                 let latest_state = match latest_state {
-                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code } => {
+                    AuctionState::SoldToMember{ item, sold_for, sold_to, confirmation_code, contributions } => {
                         if sold_to.id == user.id {
-                            AuctionState::SoldToYou { item, sold_for, confirmation_code }
+                            AuctionState::SoldToYou { item, sold_for, confirmation_code, contributions }
                         } else {
-                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for }
+                            AuctionState::SoldToSomeoneElse { item, sold_to, sold_for, contributions }
                         }
                     },
                     other => other
                 };
                 send!(socket, ServerMessage::AuctionState(latest_state.into()));
-
+                let latest_state = sync_handle.sponsorship_state.borrow().clone();
+                send!(socket, ServerMessage::SponsorshipState(latest_state.into()));
 
             },
         }

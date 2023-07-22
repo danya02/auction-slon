@@ -3,8 +3,8 @@ use common::{
     layout::Container,
 };
 use communication::{
-    auction::state::{ArenaVisibilityMode, BiddingState, JapaneseAuctionBidState},
-    AdminClientMessage, UserAccountData,
+    auction::state::{ArenaVisibilityMode, BiddingState, JapaneseAuctionBidState, Sponsorship},
+    AdminClientMessage, Money, UserAccountData,
 };
 use yew::prelude::*;
 
@@ -13,6 +13,8 @@ use super::SendToServer;
 #[derive(Properties, PartialEq)]
 pub struct ShowBidProgressProps {
     pub bid_state: BiddingState,
+    pub users: Vec<UserAccountData>,
+    pub sponsorships: Vec<Sponsorship>,
     pub send: SendToServer,
 }
 
@@ -30,7 +32,29 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             current_bidder,
             minimum_increment,
             seconds_until_commit,
+            max_millis_until_commit,
         } => {
+            let increase_bet_time_cb = {
+                let send = props.send.clone();
+                let mmuc = *max_millis_until_commit;
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::SetEnglishAuctionCommitPeriod {
+                        new_period_ms: mmuc + 5000,
+                    })
+                })
+            };
+            let decrease_bet_time_cb = {
+                let send = props.send.clone();
+                let mmuc = *max_millis_until_commit;
+                Callback::from(move |e: MouseEvent| {
+                    e.prevent_default();
+                    send.emit(AdminClientMessage::SetEnglishAuctionCommitPeriod {
+                        new_period_ms: mmuc - 1000,
+                    })
+                })
+            };
+
             html! {
                 <>
                 <p>{"Current bidder:"}</p>
@@ -38,6 +62,11 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 <p>{"Current bid amount: "}<MoneyDisplay money={current_bid_amount} /></p>
                 <p>{"Minimum bid increment: "}<MoneyDisplay money={minimum_increment} /></p>
                 <p>{"Time remaining: "}{seconds_until_commit}</p>
+                <p>
+                    {"Max bid time: "}{format!("{:.2}", *max_millis_until_commit as f32 / 1000.0)}
+                    <button class="btn btn-danger" onclick={decrease_bet_time_cb}>{"Sub 1 second"}</button>
+                    <button class="btn btn-success" onclick={increase_bet_time_cb}>{"Add 5 seconds"}</button>
+                </p>
                 </>
             }
         }
@@ -70,7 +99,10 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 let send = props.send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
-                    let new_clock_rate = current_clock_rate + 5;
+                    let cr = current_clock_rate as f64;
+                    let new_crln = cr.ln() + 0.05;
+                    let new_cr = new_crln.exp();
+                    let new_clock_rate = new_cr.ceil() as Money;
                     send.emit(AdminClientMessage::SetJapaneseClockRate(new_clock_rate));
                 })
             };
@@ -78,7 +110,10 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 let send = props.send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
-                    let new_clock_rate = current_clock_rate - 5;
+                    let cr = current_clock_rate as f64;
+                    let new_crln = cr.ln() - 0.05;
+                    let new_cr = new_crln.exp();
+                    let new_clock_rate = new_cr.floor() as Money;
                     send.emit(AdminClientMessage::SetJapaneseClockRate(new_clock_rate));
                 })
             };
@@ -121,11 +156,31 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                     current_price_increase_per_100_seconds,
                     arena_visibility_mode,
                 } => {
+                    let arena_closes = if let Some(s) = seconds_until_arena_closes {
+                        html!(
+                            <p>{"Arena closes in: "}{s}</p>
+                        )
+                    } else {
+                        let start_closing_arena_cb = {
+                            let send = props.send.clone();
+                            Callback::from(move |e: MouseEvent| {
+                                e.prevent_default();
+                                send.emit(AdminClientMessage::StartClosingJapaneseArena);
+                            })
+                        };
+                        html!(
+                            <p>
+                                <button class="btn btn-warning" onclick={start_closing_arena_cb}>
+                                    {"Start closing arena"}
+                                </button>
+                            </p>
+                        )
+                    };
                     html! {
                         <>
                             <h1>{"Arena is now open"}</h1>
-                            <p>{"Arena closes in: "}{seconds_until_arena_closes}</p>
                             <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                            {arena_closes}
                             <p>
                                 {"Current price increase rate: +"}
                                 <MoneyDisplay money={current_price_increase_per_100_seconds}/>
@@ -143,7 +198,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
                             <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
                                 <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                                <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
+                                <UserAccountTable accounts={currently_in_arena.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                             </div>
                         </>
                     }
@@ -175,7 +230,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
                         <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                             <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                            <UserAccountTable accounts={currently_in_arena.clone()} action_col_cb={get_kick_btn_cb} />
+                            <UserAccountTable accounts={currently_in_arena.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                         </div>
                     </>
                 },

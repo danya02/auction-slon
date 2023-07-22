@@ -79,10 +79,11 @@ fn main_app() -> Html {
         );
     }
 
-    let auction_state = use_state_eq(|| None);
-    let admin_state = use_state_eq(|| None);
-    let auction_members = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
-    let item_states = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
+    let auction_state = use_state(|| None);
+    let admin_state = use_state(|| None);
+    let auction_members = use_state(|| WithTimestamp::new_with_zero_time(vec![]));
+    let item_states = use_state(|| WithTimestamp::new_with_zero_time(vec![]));
+    let sponsorship_states = use_state(|| None);
 
     {
         let ws = ws.clone();
@@ -91,6 +92,7 @@ fn main_app() -> Html {
         let auction_members = auction_members.clone();
         let item_states = item_states.clone();
         let admin_state = admin_state.clone();
+        let sponsorship_states = sponsorship_states.clone();
         // Receive message by depending on `ws.message_bytes`.
         use_effect_with_deps(
             move |message| {
@@ -106,6 +108,9 @@ fn main_app() -> Html {
                             }
                             AdminServerMessage::ItemStates(items) => item_states.set(items),
                             AdminServerMessage::AdminState(state) => admin_state.set(Some(state)),
+                            AdminServerMessage::SponsorshipState(state) => {
+                                sponsorship_states.set(Some(state))
+                            }
                         },
                     }
                 }
@@ -151,9 +156,9 @@ fn main_app() -> Html {
     match *ws.ready_state {
         UseWebSocketReadyState::Open => {
             // We need to have the auction info before continuing
-            match (&*auction_state, &*admin_state) {
-                (Some(auction_state), Some(admin_state)) => {
-                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} send={send_cb} items={(*item_states).clone()} users={(*auction_members).clone()}/>)
+            match (&*auction_state, &*admin_state, &*sponsorship_states) {
+                (Some(auction_state), Some(admin_state), Some(sponsorship_states)) => {
+                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} sponsorships={sponsorship_states.clone()} send={send_cb} items={(*item_states).clone()} users={(*auction_members).clone()}/>)
                 }
                 _ => {
                     html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)

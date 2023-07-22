@@ -5,10 +5,10 @@ use communication::{
         actions::JapaneseAuctionAction,
         state::{
             ActiveBidState, ArenaVisibilityMode, AuctionItem, AuctionState, BiddingState,
-            JapaneseAuctionBidState,
+            JapaneseAuctionBidState, Sponsorship,
         },
     },
-    Money, UserAccountData,
+    forget_user_secrets, Money, UserAccountData,
 };
 use rand::Rng;
 use sqlx::{query, SqlitePool};
@@ -17,6 +17,10 @@ use tokio::{
     time::{interval_at, Instant},
 };
 use tracing::warn;
+
+use crate::auction::db_actions::apply_contributions;
+
+use super::sync_handle;
 
 #[derive(Debug)]
 pub enum JapaneseAuctionEvent {
@@ -34,6 +38,9 @@ pub enum JapaneseAuctionEvent {
 
     /// An admin has changed the arena visibility mode.
     NewArenaVisibilityMode(ArenaVisibilityMode),
+
+    /// An admin has started the arena closing.
+    StartClosingArena,
 }
 
 pub async fn run_japanese_auction(
@@ -41,6 +48,7 @@ pub async fn run_japanese_auction(
     pool: SqlitePool,
     rx: Arc<Mutex<mpsc::Receiver<JapaneseAuctionEvent>>>,
     state_tx: mpsc::Sender<AuctionState>,
+    mut sync_handle: sync_handle::AuctionSyncHandle,
 ) -> anyhow::Result<()> {
     let pool = &pool;
     let mut rx = rx.lock().await;
@@ -76,10 +84,15 @@ pub async fn run_japanese_auction(
     let mut update_interval = tokio::time::interval(Duration::from_millis(100));
 
     let mut arena = vec![];
-    let arena_closes_for_entry = tokio::time::Instant::now() + Duration::from_secs(15);
+
+    // This value is irrelevant as long as `arena_is_closing` is false.
+    let mut arena_closes_for_entry = tokio::time::Instant::now();
+
     let mut arena_is_closed = false;
 
     let mut arena_visibility_mode = ArenaVisibilityMode::Full;
+
+    let mut arena_is_closing = false;
 
     // This returns an Err when the item is successfully sold.
     // Just call this with ? whenever arena changes.
@@ -90,6 +103,7 @@ pub async fn run_japanese_auction(
         state_tx: &mpsc::Sender<AuctionState>,
         pool: &SqlitePool,
         item: &AuctionItem,
+        sync_handle: &mut sync_handle::AuctionSyncHandle,
     ) -> anyhow::Result<()> {
         let e = Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -113,26 +127,26 @@ pub async fn run_japanese_auction(
 
             if arena.len() == 1 {
                 let winner: &UserAccountData = arena.first().unwrap();
-                let winner_pays = current_price.min(winner.balance);
+                let sponsorships = sync_handle.sponsorship_state.borrow().clone();
+                let users = forget_user_secrets(sync_handle.auction_members.borrow().clone());
 
-                // Update the database
-                let mut tx = pool.begin().await?;
-                query!(
-                    "INSERT INTO auction_item_sale(item_id, buyer_id, sale_price) VALUES (?,?,?)",
-                    item.id,
+                let winner_has_access_to =
+                    Sponsorship::resolve_available_balance(winner.id, &users, &sponsorships);
+                let winner_pays = current_price.min(winner_has_access_to);
+
+                // Fetch the latest states of users and sponsorships: important so that the info is not outdated.
+
+                let contributions = Sponsorship::calculate_contributions(
                     winner.id,
-                    winner_pays
-                )
-                .execute(&mut tx)
-                .await?;
-                query!(
-                    "UPDATE auction_user SET balance=balance-? WHERE id=?",
                     winner_pays,
-                    winner.id,
-                )
-                .execute(&mut tx)
-                .await?;
-                tx.commit().await?;
+                    &users,
+                    &sponsorships,
+                );
+
+                let contributions_ids: Vec<_> =
+                    contributions.iter().map(|(u, b)| (u.id, *b)).collect();
+
+                apply_contributions(pool, item.id, winner.id, &contributions_ids).await?;
 
                 // Publish the state
                 let mut confirmation_code = String::new();
@@ -143,19 +157,16 @@ pub async fn run_japanese_auction(
                     }
                 }
 
-                let current_bidder_row = query!("SELECT * FROM auction_user WHERE id=?", winner.id)
-                    .fetch_one(pool)
-                    .await?;
-                let current_bidder = UserAccountData {
-                    id: current_bidder_row.id,
-                    user_name: current_bidder_row.name,
-                    balance: current_bidder_row.balance as Money,
-                };
+                let current_bidder = users
+                    .iter()
+                    .find(|u| u.id == winner.id)
+                    .expect("Final bidder not in user list?");
                 let state = AuctionState::SoldToMember {
                     item: item.clone(),
                     sold_for: winner_pays,
-                    sold_to: current_bidder,
+                    sold_to: current_bidder.clone(),
                     confirmation_code,
+                    contributions,
                 };
                 state_tx.send(state).await?;
                 return e?;
@@ -171,6 +182,8 @@ pub async fn run_japanese_auction(
             && arena_closes_for_entry
                 .duration_since(Instant::now())
                 .is_zero()
+            && arena_is_closing
+        // only close the arena after request, and a timeout
         {
             arena_is_closed = true;
             // Also, tell the system about this
@@ -195,6 +208,7 @@ pub async fn run_japanese_auction(
             &state_tx,
             pool,
             &item,
+            &mut sync_handle,
         )
         .await?;
         tokio::select! {
@@ -214,14 +228,17 @@ pub async fn run_japanese_auction(
                                     None => {warn!("User ID {user_id} tried to enter Japanese arena, but does not exist; hacking detected?"); continue;}
                                     Some(row) => row,
                                 };
-                                let user = UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32 };
+                                let user = UserAccountData { id: row.id, user_name: row.name, balance: row.balance as u32,
+                                     sale_mode: row.sale_mode.into(),
+                                     is_accepting_sponsorships: row.sponsorship_code.is_some(),
+                                 };
                                 arena.push(user);
 
                                 // Publish the current state (price, mode and arena members)
                                 let bid_state = if arena_is_closed {
                                     JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 } else {
-                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_is_closing.then(||arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32()), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 };
                                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -229,13 +246,13 @@ pub async fn run_japanese_auction(
                             JapaneseAuctionAction::ExitArena => {
                                 // Remove the user from the arena, regardless of whether it's in there or not.
                                 arena.retain(|u| u.id != user_id);
-                                run_sold_check(arena_is_closed, current_price, &mut arena, &state_tx, pool, &item).await?;
+                                run_sold_check(arena_is_closed, current_price, &mut arena, &state_tx, pool, &item, &mut sync_handle,).await?;
 
                                 // Publish the current state (price, mode and arena members)
                                 let bid_state = if arena_is_closed {
                                     JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 } else {
-                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                                    JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_is_closing.then(||arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32()), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                                 };
                                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -253,7 +270,7 @@ pub async fn run_japanese_auction(
                         let bid_state = if arena_is_closed {
                             JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         } else {
-                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_is_closing.then(||arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32()), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         };
                         state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
 
@@ -263,9 +280,13 @@ pub async fn run_japanese_auction(
                         let bid_state = if arena_is_closed {
                             JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         } else {
-                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
+                            JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_is_closing.then(||arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32()), current_price, current_price_increase_per_100_seconds, arena_visibility_mode }
                         };
                         state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
+                    },
+                    JapaneseAuctionEvent::StartClosingArena => {
+                        arena_is_closing = true;
+                        arena_closes_for_entry = Instant::now() + Duration::from_secs(10);
                     },
                 }
             }
@@ -276,14 +297,16 @@ pub async fn run_japanese_auction(
 
                 current_price += 1;
                 // TODO: apply some kind of transformation to `price_increase_interval`
+                let sponsorships = sync_handle.sponsorship_state.borrow().clone();
+                let users = forget_user_secrets(sync_handle.auction_members.borrow().clone());
 
                 // Remove members from the arena who have less than the money clock in their balance,
                 // in reverse order of the array, and check for the winner every time.
                 // This ensures that the member who entered first is the winner.
-                while let Some(member) = arena.iter().rev().find(|i| i.balance < current_price) {
+                while let Some(member) = arena.iter().rev().find(|u| Sponsorship::resolve_available_balance(u.id, &users, &sponsorships) < current_price) {
                     let id = member.id;
                     arena.retain(|i| i.id != id);
-                    run_sold_check(arena_is_closed, current_price, &mut arena, &state_tx, pool, &item).await?;
+                    run_sold_check(arena_is_closed, current_price, &mut arena, &state_tx, pool, &item, &mut sync_handle).await?;
                 }
 
                 // Publish the current auction state.
@@ -291,8 +314,6 @@ pub async fn run_japanese_auction(
                 let bid_state = JapaneseAuctionBidState::ClockRunning { currently_in_arena: arena.clone(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode };
 
                 state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
-
-
             }
 
             _ = update_interval.tick() => {
@@ -300,10 +321,24 @@ pub async fn run_japanese_auction(
                 // ONLY IF the arena is currently open -> arena closing timer is counting down
                 // (if the arena is closed, this is handled in the price_increase_interval tick, where we send a message on every price change)
                 if !arena_is_closed {
-                    let bid_state = JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32(), current_price, current_price_increase_per_100_seconds, arena_visibility_mode };
+                    let bid_state = JapaneseAuctionBidState::EnterArena { currently_in_arena: arena.clone(), seconds_until_arena_closes: arena_is_closing.then(||arena_closes_for_entry.duration_since(Instant::now()).as_secs_f32()), current_price, current_price_increase_per_100_seconds, arena_visibility_mode };
                     state_tx.send(AuctionState::Bidding(BiddingState { item: item.clone(), active_bid: ActiveBidState::JapaneseAuctionBid(bid_state) })).await?;
                 }
+            }
 
+            _ = sync_handle.sponsorship_state.changed() => {
+                // For all arena members, check whether they have access to enough money.
+                // If not, the member is removed.
+                let sponsorships = sync_handle.sponsorship_state.borrow().clone();
+                let users = forget_user_secrets(sync_handle.auction_members.borrow().clone());
+
+                // As above, we remove the members in sequence, and check for sale completion at every step.
+                // This is so that there is a definite winner in a tie.
+                while let Some(member) = arena.iter().rev().find(|u| Sponsorship::resolve_available_balance(u.id, &users, &sponsorships) < current_price) {
+                    let id = member.id;
+                    arena.retain(|i| i.id != id);
+                    run_sold_check(arena_is_closed, current_price, &mut arena, &state_tx, pool, &item, &mut sync_handle).await?;
+                }
             }
         }
     }

@@ -1,8 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use communication::{
-    admin_state::AdminState, auction::state::AuctionState, ItemState, UserAccountData,
-    UserAccountDataWithSecrets,
+    admin_state::AdminState,
+    auction::state::{AuctionState, Sponsorship},
+    ItemState, UserAccountDataWithSecrets,
 };
 use sqlx::SqlitePool;
 use tokio::sync::*;
@@ -19,11 +20,7 @@ pub struct AuctionSyncHandle {
 
     /// Allows fetching member by their login key.
     /// Send in the login key, and a oneshot sender to get back the account data.
-    get_member_by_key: mpsc::Sender<(String, oneshot::Sender<Option<UserAccountData>>)>,
-
-    /// Allows getting a member by their ID.
-    /// Send in the ID, and a oneshot sender to get back the account data.
-    get_member_by_id: mpsc::Sender<(i64, oneshot::Sender<Option<UserAccountData>>)>,
+    get_member_by_key: mpsc::Sender<(String, oneshot::Sender<Option<UserAccountDataWithSecrets>>)>,
 
     /// Stores info on the current auction state.
     pub auction_state: watch::Receiver<AuctionState>,
@@ -39,6 +36,10 @@ pub struct AuctionSyncHandle {
 
     /// Stores the state that the admin can use
     pub admin_state: watch::Receiver<AdminState>,
+
+    /// Holds the sponsorships currently in the database.
+    /// No processing is applied to these. Figure it out yourself.
+    pub sponsorship_state: watch::Receiver<Vec<Sponsorship>>,
 }
 
 impl AuctionSyncHandle {
@@ -51,7 +52,7 @@ impl AuctionSyncHandle {
     pub async fn get_member_by_key(
         &self,
         key: String,
-    ) -> Option<(UserAccountData, oneshot::Receiver<()>)> {
+    ) -> Option<(UserAccountDataWithSecrets, oneshot::Receiver<()>)> {
         // Make a oneshot channel
         let (tx, rx) = oneshot::channel();
         // Send it to the manager
@@ -81,20 +82,6 @@ impl AuctionSyncHandle {
         }
     }
 
-    /// Wrapper for the `get_member_by_key` process
-    pub async fn get_member_by_id(&self, id: i64) -> Option<UserAccountData> {
-        // Make a oneshot channel
-        let (tx, rx) = oneshot::channel();
-        // Send it to the manager
-        self.get_member_by_id
-            .send((id, tx))
-            .await
-            .expect("Manager closed without receiving command to get member");
-
-        rx.await
-            .expect("Manager closed without giving back member by ID")
-    }
-
     /// Send an AuctionEvent into the auction process.
     pub async fn send_event(&self, event: AuctionEvent) {
         self.auction_event_sender
@@ -112,53 +99,74 @@ impl AuctionSyncHandle {
         let (astx, asrx) = watch::channel(AuctionState::WaitingForAuction);
         let (isstx, issrx) = watch::channel(vec![]);
         let (gmbktx, gmbkrx) = mpsc::channel(100);
-        let (gmbitx, gmbirx) = mpsc::channel(100);
         let (aetx, aerx) = mpsc::channel(100);
         let (adstx, adsrx) = watch::channel(AdminState {
             holding_account_balance: 0,
         });
+        let (sptx, sprx) = watch::channel(vec![]);
 
-        tokio::spawn(auction_manager(
-            pool, amtx, gmbkrx, gmbirx, astx, aerx, isstx, adstx,
-        ));
-        AuctionSyncHandle {
+        let sync_handle = AuctionSyncHandle {
             auction_members: amrx,
             get_member_by_key: gmbktx,
-            get_member_by_id: gmbitx,
             auction_state: asrx,
             auction_event_sender: aetx,
             item_sale_states: issrx,
             admin_state: adsrx,
             connection_drop_handles: Arc::new(Mutex::new(HashMap::new())),
-        }
+            sponsorship_state: sprx,
+        };
+
+        tokio::spawn(auction_manager(
+            pool,
+            amtx,
+            gmbkrx,
+            astx,
+            aerx,
+            isstx,
+            adstx,
+            sptx,
+            sync_handle.clone(),
+        ));
+        sync_handle
     }
 }
 
 async fn auction_manager(
     pool: SqlitePool,
     mut auction_member_tx: watch::Sender<Vec<UserAccountDataWithSecrets>>,
-    mut get_member_by_key_rx: mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
-    mut get_member_by_id_rx: mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
+    mut get_member_by_key_rx: mpsc::Receiver<(
+        String,
+        oneshot::Sender<Option<UserAccountDataWithSecrets>>,
+    )>,
     mut auction_state_tx: watch::Sender<AuctionState>,
     mut auction_event_rx: mpsc::Receiver<AuctionEvent>,
     mut item_sale_state_tx: watch::Sender<Vec<ItemState>>,
     mut admin_state_tx: watch::Sender<AdminState>,
-) -> ! {
+    mut sponsorship_state: watch::Sender<Vec<Sponsorship>>,
+    sync_handle: AuctionSyncHandle,
+) -> () {
     loop {
         let result = auction_manager_inner(
             &pool,
             &mut auction_member_tx,
             &mut get_member_by_key_rx,
-            &mut get_member_by_id_rx,
             &mut auction_state_tx,
             &mut auction_event_rx,
             &mut item_sale_state_tx,
             &mut admin_state_tx,
+            &mut sponsorship_state,
+            sync_handle.clone(),
         )
         .await;
         match result {
             Ok(_) => unreachable!(),
-            Err(why) => eprintln!("Auction manager task closed with error: {why} {why:?}"),
+            Err(why) => {
+                eprintln!("Auction manager task closed with error: {why} {why:?}");
+                // If it's because the pool is closed, then we need to exit
+                if pool.is_closed() {
+                    return;
+                }
+            }
         }
     }
 }

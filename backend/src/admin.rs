@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::extract::ws::{close_code, Message, WebSocket};
 
 use communication::{decode, encode, AdminClientMessage, AdminServerMessage, WithTimestamp};
@@ -45,6 +47,8 @@ pub async fn handle_socket(
     send!(socket, AdminServerMessage::ItemStates(state));
     let state: WithTimestamp<_> = sync_handle.admin_state.borrow().clone().into();
     send!(socket, AdminServerMessage::AdminState(state));
+    let state = sync_handle.sponsorship_state.borrow().clone();
+    send!(socket, AdminServerMessage::SponsorshipState(state.into()));
 
     loop {
         tokio::select! {
@@ -165,6 +169,16 @@ pub async fn handle_socket(
                                     AdminClientMessage::TransferAcrossHolding{user_id, new_balance} => sync_handle.send_event(
                                         AuctionEvent::HoldingAccountTransfer{user_id, new_balance}
                                     ).await,
+                                    AdminClientMessage::SetEnglishAuctionCommitPeriod {new_period_ms} => sync_handle.send_event(
+                                        AuctionEvent::EnglishAuctionAction(crate::auction::EnglishAuctionEvent::SetCommitPeriod { new_period: Duration::from_millis(new_period_ms as u64) })
+                                    ).await,
+                                    AdminClientMessage::StartClosingJapaneseArena => {
+                                        sync_handle.send_event(
+                                            AuctionEvent::JapaneseAuctionAction(
+                                                crate::auction::JapaneseAuctionEvent::StartClosingArena
+                                            )
+                                        ).await;
+                                    }
                                 }
                             },
                             _ => {},
@@ -187,6 +201,10 @@ pub async fn handle_socket(
             _ = sync_handle.admin_state.changed() => {
                 let latest_state: WithTimestamp<_> = sync_handle.admin_state.borrow().clone().into();
                 send!(socket, AdminServerMessage::AdminState(latest_state));
+            },
+            _ = sync_handle.sponsorship_state.changed() => {
+                let latest_state = sync_handle.sponsorship_state.borrow().clone();
+                send!(socket, AdminServerMessage::SponsorshipState(latest_state.into()));
             },
         }
     }

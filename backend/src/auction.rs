@@ -2,8 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use communication::{
     admin_state::AdminState,
-    auction::state::{AuctionItem, AuctionReport, AuctionState},
-    ItemState, ItemStateValue, Money, UserAccountData, UserAccountDataWithSecrets,
+    auction::state::{AuctionItem, AuctionReport, AuctionState, Sponsorship, SponsorshipStatus},
+    forget_user_secrets, ItemState, Money, UserAccountDataWithSecrets,
 };
 use rand::prelude::*;
 use sqlx::{query, SqlitePool};
@@ -11,6 +11,7 @@ use tokio::sync::*;
 use tracing::{debug, warn};
 
 mod auction_event;
+mod db_actions;
 mod english;
 mod japanese;
 mod sync_handle;
@@ -19,17 +20,50 @@ pub use english::*;
 pub use japanese::*;
 pub use sync_handle::*;
 
-use crate::Ignorable;
+use crate::{
+    auction::db_actions::{get_item_state, get_sponsorship_state, get_user_state},
+    Ignorable,
+};
+
+async fn gen_sponsorship_code(pool: &SqlitePool) -> anyhow::Result<String> {
+    // Because ThreadRng is not Send, it cannot be alive by the time that an `await` point is crossed;
+    // however, we may need to generate multiple codes.
+    // So, we seed our own StdRng, which is allowed to survive an `await`.
+    let seed = rand::random();
+    let mut rng = StdRng::from_seed(seed);
+
+    let nums = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    let mut code = String::with_capacity(4);
+    loop {
+        // Try a new code
+        for _ in 0..4 {
+            code.push(*nums.choose(&mut rng).unwrap());
+        }
+        // If that code doesn't exist in the database, then we're done.
+        // If it does, loop again.
+        if let None = query!("SELECT id FROM auction_user WHERE sponsorship_code=?", code)
+            .fetch_optional(pool)
+            .await?
+        {
+            break;
+        }
+    }
+    Ok(code)
+}
 
 async fn auction_manager_inner(
     pool: &SqlitePool,
     auction_member_tx: &mut watch::Sender<Vec<UserAccountDataWithSecrets>>,
-    get_member_by_key_rx: &mut mpsc::Receiver<(String, oneshot::Sender<Option<UserAccountData>>)>,
-    get_member_by_id_rx: &mut mpsc::Receiver<(i64, oneshot::Sender<Option<UserAccountData>>)>,
+    get_member_by_key_rx: &mut mpsc::Receiver<(
+        String,
+        oneshot::Sender<Option<UserAccountDataWithSecrets>>,
+    )>,
     auction_state_tx: &mut watch::Sender<AuctionState>,
     auction_event_rx: &mut mpsc::Receiver<AuctionEvent>,
     item_sale_state_tx: &mut watch::Sender<Vec<ItemState>>,
     admin_state_tx: &mut watch::Sender<AdminState>,
+    sponsorship_state_tx: &mut watch::Sender<Vec<Sponsorship>>,
+    sync_handle: AuctionSyncHandle,
 ) -> anyhow::Result<()> {
     let mut user_data_refresh_interval = tokio::time::interval(Duration::from_secs(1));
 
@@ -85,57 +119,12 @@ async fn auction_manager_inner(
 
     admin_state_tx.send_replace(get_admin_state(&pool).await?);
 
-    let get_item_state = {
-        async move |pool: &SqlitePool| -> anyhow::Result<Vec<ItemState>> {
-            let item_rows = query!(r#"
-                    SELECT
-                        auction_item.id, auction_item.name, auction_item.initial_price, auction_item_sale.buyer_id, auction_item_sale.sale_price, auction_user.name AS username, auction_user.balance
-                    FROM auction_item
-                    LEFT OUTER JOIN auction_item_sale ON auction_item_sale.item_id = auction_item.id
-                    LEFT OUTER JOIN auction_user ON auction_item_sale.buyer_id = auction_user.id
-                    "#).fetch_all(pool).await?;
-            let mut item_data = vec![];
-            for row in item_rows {
-                let item = AuctionItem {
-                    id: row.id,
-                    name: row.name,
-                    initial_price: row.initial_price as Money,
-                };
-                let state = match row.buyer_id {
-                    None => ItemStateValue::Sellable,
-                    Some(id) => ItemStateValue::AlreadySold {
-                        buyer: UserAccountData {
-                            id,
-                            user_name: row.username,
-                            balance: row.balance as Money,
-                        },
-                        sale_price: row.sale_price.unwrap() as Money,
-                    },
-                };
-                item_data.push(ItemState { item, state });
-            }
-            Ok(item_data)
-        }
-    };
-
-    let get_user_state =
-        async move |pool: &SqlitePool| -> anyhow::Result<Vec<UserAccountDataWithSecrets>> {
-            let user_rows = query!("SELECT * FROM auction_user").fetch_all(pool).await?;
-            let mut user_data = vec![];
-            for row in user_rows {
-                user_data.push(UserAccountDataWithSecrets {
-                    id: row.id,
-                    user_name: row.name,
-                    balance: row.balance as u32,
-                    login_key: row.login_key,
-                });
-            }
-            Ok(user_data)
-        };
+    sponsorship_state_tx.send_replace(get_sponsorship_state(pool).await?);
 
     loop {
         tokio::select! {
             // === Periodic updates ===
+            // TODO!!!: check if this is really necessary
             _ = item_data_refresh_interval.tick() => {
                 item_sale_state_tx.send_replace(get_item_state(pool).await?);
             },
@@ -149,12 +138,16 @@ async fn auction_manager_inner(
             // === IPC ===
             Some((key, sender)) = get_member_by_key_rx.recv() => {
                 let user_row = query!("SELECT * FROM auction_user WHERE login_key=?", key).fetch_optional(pool).await?;
-                sender.send(user_row.map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as Money })).ignore();
-            },
-
-            Some((id, sender)) = get_member_by_id_rx.recv() => {
-                let user_row = query!("SELECT * FROM auction_user WHERE id=?", id).fetch_optional(pool).await?;
-                sender.send(user_row.map(|row| UserAccountData { id: row.id, user_name: row.name, balance: row.balance as Money })).ignore();
+                sender.send(user_row.map(
+                 |row| UserAccountDataWithSecrets {
+                    id: row.id,
+                    user_name: row.name,
+                    balance: row.balance as Money,
+                    sale_mode: row.sale_mode.into(),
+                    login_key: row.login_key,
+                    sponsorship_code: row.sponsorship_code,
+                 }
+             )).ignore();
             },
 
 
@@ -179,18 +172,18 @@ async fn auction_manager_inner(
                     AuctionEvent::RunEnglishAuction(item_id) => {
                         running_auction_handle.abort();
                         current_auction = English;
-                        running_auction_handle = tokio::spawn(run_english_auction(item_id, pool.clone(), english_rx.clone(), state_tx.clone()));
+                        running_auction_handle = tokio::spawn(run_english_auction(item_id, pool.clone(), english_rx.clone(), state_tx.clone(), sync_handle.clone()));
                     },
                     AuctionEvent::RunJapaneseAuction(item_id) => {
                         running_auction_handle.abort();
                         current_auction = Japanese;
-                        running_auction_handle = tokio::spawn(run_japanese_auction(item_id, pool.clone(), japanese_rx.clone(), state_tx.clone()));
+                        running_auction_handle = tokio::spawn(run_japanese_auction(item_id, pool.clone(), japanese_rx.clone(), state_tx.clone(), sync_handle.clone()));
                     },
 
-                    AuctionEvent::BidInEnglishAuction{ user_id, item_id, bid_amount } => {
+                    AuctionEvent::EnglishAuctionAction(action) => {
                         // If there is no English auction currently in progress, ignore this
                         if !matches!(current_auction, English) {continue;}
-                        english_tx.send(EnglishAuctionEvent::BidPlaced { bidder_id: user_id, bid_amount, item_id }).await?;
+                        english_tx.send(action).await?;
                     },
 
                     AuctionEvent::JapaneseAuctionAction(action) => {
@@ -206,7 +199,7 @@ async fn auction_manager_inner(
                         // Gather auction report
                         // First, collect the latest user data
                         // (which is redundant with the periodic data, but it's more convenient to have it here)
-                        let user_data = get_user_state(pool).await?.into_iter().map(|i| i.into()).collect();
+                        let user_data = forget_user_secrets(get_user_state(pool).await?);
 
                         // Then, collect the sale data
                         let item_data = get_item_state(pool).await?;
@@ -359,6 +352,123 @@ async fn auction_manager_inner(
                         admin_state_tx.send_replace(get_admin_state(&pool).await?);
                         auction_member_tx.send_replace(get_user_state(pool).await?);
 
+                    },
+
+                    AuctionEvent::SetIsAcceptingSponsorships {user_id, is_accepting_sponsorships} => {
+                        let maybe_sponsorship_code = is_accepting_sponsorships.then_some(gen_sponsorship_code(pool).await?);
+                        query!("UPDATE auction_user SET sponsorship_code=? WHERE id=?", maybe_sponsorship_code, user_id).execute(pool).await?;
+                        auction_member_tx.send_replace(get_user_state(pool).await?);
+                    },
+                    AuctionEvent::TryActivateSponsorshipCode { user_id, code } => {
+                        // Try to find a user who has the given sponsorship code.
+                        let maybe_user_row = query!("SELECT * FROM auction_user WHERE sponsorship_code=?", code).fetch_optional(pool).await?;
+                        // If such a user does not exist, ignore.
+                        let row = match maybe_user_row {
+                            None => {continue;},
+                            Some(r) => r,
+                        };
+
+                        // If it would be the same user as the donor, do not accept this.
+                        if row.id == user_id { continue; }
+
+                        // Get the donor's balance, which will be the initial sponsorship amount.
+                        let balance = {
+                            let users = auction_member_tx.borrow();
+                            users.iter().find(|u| u.id == user_id).expect("User creating sponsorship does not exist?").balance
+                        };
+
+                        let mut tx = pool.begin().await?;
+
+                        // Any other sponsorships from the donor to the recepient that are Active need to be changed to Retracted.
+                        let retracted = SponsorshipStatus::Retracted.to_db_val();
+                        let active = SponsorshipStatus::Active.to_db_val();
+                        query!("UPDATE sponsorship SET status=? WHERE status=? AND donor_id=? AND recepient_id=?",
+                            retracted, active,
+                            user_id, row.id,
+                        ).execute(&mut tx).await?;
+
+                        // Create the sponsorship row
+                        query!(
+                            "INSERT INTO sponsorship (donor_id, recepient_id, status, remaining_balance) VALUES (?,?,?,?)",
+                            user_id, row.id, 1 /*status=active*/, balance
+                            ).execute(&mut tx).await?;
+
+                        tx.commit().await?;
+
+                        // Fetch current sponsorships
+                        sponsorship_state_tx.send_replace(get_sponsorship_state(pool).await?);
+
+                    },
+
+                    AuctionEvent::UpdateSponsorship { actor_id, sponsorship_id, new_status, new_amount } => {
+                        // Fetch the sponsorship. If it doesn't exist, ignore.
+                        let mut sponsorship = {
+                            let sponsorships = sponsorship_state_tx.borrow();
+                            let mut s_iter = sponsorships.iter();
+                            let s = s_iter.find(|s| s.id == sponsorship_id);
+                            match s {
+                                None => {continue;},
+                                Some(s) => s.clone(),
+                            }
+                        };
+                        let mut did_change = false;
+
+                        // If I'm the recepient, I can change the status to Rejected.
+                        if actor_id == sponsorship.recepient_id && new_status == Some(SponsorshipStatus::Rejected) {
+                            sponsorship.status = SponsorshipStatus::Rejected;
+                            did_change = true;
+                        }
+
+                        // If I'm the donor, I can change the balance to anything.
+                        if let Some(b) = new_amount { if actor_id == sponsorship.donor_id {
+                            sponsorship.balance_remaining = b;
+                            did_change = true;
+                        }}
+
+                        // If I'm the donor, I can change the status to Retracted.
+                        if actor_id == sponsorship.donor_id && new_status == Some(SponsorshipStatus::Retracted) {
+                            sponsorship.status = SponsorshipStatus::Retracted;
+                            did_change = true;
+                        }
+
+
+                        // If any of the changes were applied, persist them,
+                        // then update the receivers.
+                        if did_change {
+                            let status = sponsorship.status.to_db_val();
+                            query!("UPDATE sponsorship SET status=?, remaining_balance=? WHERE id=?",
+                                status, sponsorship.balance_remaining, sponsorship.id)
+                                .execute(pool).await?;
+                            sponsorship_state_tx.send_replace(get_sponsorship_state(pool).await?);
+
+                        }
+                    },
+                    AuctionEvent::SetSaleMode { user_id, sale_mode } => {
+                        let sale_mode = u8::from(sale_mode);
+                        query!("UPDATE auction_user SET sale_mode=? WHERE id=?", sale_mode, user_id).execute(pool).await?;
+                        auction_member_tx.send_replace(get_user_state(pool).await?);
+                    },
+                    AuctionEvent::RegenerateSponsorshipCode { user_id } => {
+                        // Get the user with the given ID.
+                        let user = {
+                            let users = auction_member_tx.borrow();
+                            let mut u_iter = users.iter();
+                            let u = u_iter.find(|u| u.id == user_id);
+                            match u {
+                                None => {continue;},
+                                Some(u) => u.clone()
+                            }
+                        };
+
+                        // If it doesn't have a sponsorship code, ignore it.
+                        if user.sponsorship_code.is_none() {continue;}
+                        // But if it does, make a new one
+                        let new_code = gen_sponsorship_code(pool).await?;
+
+                        query!("UPDATE auction_user SET sponsorship_code=? WHERE id=?",
+                            new_code, user.id
+                        ).execute(pool).await?;
+                        auction_member_tx.send_replace(get_user_state(pool).await?);
                     },
                 }
             },

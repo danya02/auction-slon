@@ -78,15 +78,17 @@ fn main_app() -> Html {
     }
 
     let auction_state =
-        use_state_eq(|| WithTimestamp::new_with_zero_time(AuctionState::WaitingForAuction));
-    let user_account = use_state_eq(|| None);
-    let auction_members = use_state_eq(|| WithTimestamp::new_with_zero_time(vec![]));
-
+        use_state(|| WithTimestamp::new_with_zero_time(AuctionState::WaitingForAuction));
+    let user_account = use_state(|| None);
+    let auction_members = use_state(|| WithTimestamp::new_with_zero_time(vec![]));
+    let sponsorship_states = use_state(|| None);
     {
         let ws = ws.clone();
         let user_account = user_account.clone();
         let auction_members = auction_members.clone();
         let auction_state = auction_state.clone();
+        let sponsorship_states = sponsorship_states.clone();
+
         // Receive message by depending on `ws.message_bytes`.
         use_effect_with_deps(
             move |message| {
@@ -97,6 +99,9 @@ fn main_app() -> Html {
                             ServerMessage::YourAccount(acc) => user_account.set(Some(acc)),
                             ServerMessage::AuctionMembers(members) => auction_members.set(members),
                             ServerMessage::AuctionState(state) => auction_state.set(state),
+                            ServerMessage::SponsorshipState(state) => {
+                                sponsorship_states.set(Some(state))
+                            }
                         },
                     }
                 }
@@ -144,12 +149,12 @@ fn main_app() -> Html {
     match *ws.ready_state {
         UseWebSocketReadyState::Open => {
             // We need to have the user info before continuing
-            match &*user_account {
-                None => {
-                    html!(<FullscreenMsg message="Waiting for server to send user info..." show_reload_button={true} />)
+            match (&*user_account, &*sponsorship_states) {
+                (Some(acc), Some(sponsors)) => {
+                    html!(<AuctionView state={(*auction_state).clone()} members={(*auction_members).clone()} account={acc.clone()} sponsorships={sponsors.clone()} send={send_cb}/>)
                 }
-                Some(acc) => {
-                    html!(<AuctionView state={(*auction_state).clone()} members={(*auction_members).clone()} account={acc.clone()} send={send_cb}/>)
+                _ => {
+                    html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)
                 }
             }
         }
