@@ -7,7 +7,10 @@ use communication::{
 };
 use rand::prelude::*;
 use sqlx::{query, SqlitePool};
-use tokio::{sync::*, time::interval};
+use tokio::{
+    sync::*,
+    time::{interval, Instant},
+};
 use tracing::{debug, warn};
 
 mod auction_event;
@@ -105,13 +108,20 @@ async fn auction_manager_inner(
     // Gather the initial admin state and send it.
     let get_admin_state = {
         async move |pool: &SqlitePool,
-                    sync_handle: &AuctionSyncHandle|
+                    sync_handle: &AuctionSyncHandle,
+                    last_holding_account_checked_at: Arc<Mutex<Instant>>|
                     -> anyhow::Result<AdminState> {
-            let holding_account_balance =
+            let mut lhaca = last_holding_account_checked_at.lock().await;
+
+            let holding_account_balance = if lhaca.elapsed().as_secs() >= 1 {
+                *lhaca = Instant::now();
                 query!("SELECT value FROM kv_data_int WHERE key='holding_balance'")
                     .fetch_one(pool)
                     .await?
-                    .value;
+                    .value as Money
+            } else {
+                sync_handle.admin_state.borrow().holding_account_balance
+            };
 
             // To get the list of connected users, we'll go through the HashMap of connected handles,
             // and check whether each of those is still alive
@@ -124,20 +134,22 @@ async fn auction_manager_inner(
             };
 
             let state = AdminState {
-                holding_account_balance: holding_account_balance as Money,
+                holding_account_balance,
                 connected_users,
             };
             Ok(state)
         }
     };
 
-    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
+    let lhaca = Arc::new(Mutex::new(Instant::now()));
 
+    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle, lhaca.clone()).await?);
     sponsorship_state_tx.send_replace(get_sponsorship_state(pool).await?);
 
-    let mut admin_data_refresh_interval = interval(Duration::from_secs(1));
+    let mut admin_data_refresh_interval = interval(Duration::from_millis(100));
 
     loop {
+        let lhaca = lhaca.clone();
         tokio::select! {
             // === Periodic updates ===
             // TODO!!!: check if this is really necessary
@@ -151,7 +163,7 @@ async fn auction_manager_inner(
 
             // This one is definitely necessary: the admin state can change by external means (user connects/disconnects)
             _ = admin_data_refresh_interval.tick() => {
-                    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
+                    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle, lhaca).await?);
             },
 
 
@@ -335,7 +347,7 @@ async fn auction_manager_inner(
                             Some(t) => t.balance as Money,
                             None => {
                                 warn!("Tried to transfer across holding account for user ID {user_id}, which does not exist -- desync?");
-                                admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
+                                admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle, lhaca).await?);
                                 continue;
                             }
                         };
@@ -370,7 +382,7 @@ async fn auction_manager_inner(
                         query!("UPDATE kv_data_int SET value=? WHERE key='holding_balance'", new_holding_balance).execute(&mut tx).await?;
                         tx.commit().await?;
 
-                        admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
+                        admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle, lhaca).await?);
                         auction_member_tx.send_replace(get_user_state(pool).await?);
 
                     },

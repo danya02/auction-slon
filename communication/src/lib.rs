@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::Debug,
     ops::{Deref, DerefMut},
     time::SystemTime,
@@ -19,16 +20,18 @@ where
     T: Serialize,
 {
     // JSON
-    serde_json::to_vec(msg).expect("Error while serializing to JSON")
+    //let json_data = serde_json::to_vec(msg).expect("Error while serializing to JSON");
+    // Postcard
+    let pc_data = postcard::to_stdvec(msg).expect("Error while serializing to Postcard");
+    pc_data
 }
 
-pub type DecodeError = serde_json::Error;
-
-pub fn decode<'de, T>(data: &'de [u8]) -> Result<T, DecodeError>
+pub fn decode<'de, T>(data: &'de [u8]) -> Result<T, impl Error>
 where
     T: Deserialize<'de>,
 {
-    serde_json::from_slice::<'de, T>(data)
+    //serde_json::from_slice::<'de, T>(data)
+    postcard::from_bytes(data)
 }
 
 #[derive(Serialize, Deserialize, Clone)]

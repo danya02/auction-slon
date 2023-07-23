@@ -6,7 +6,6 @@ use yew::prelude::*;
 
 use crate::AppCtx;
 
-
 #[function_component]
 pub fn HoldingAccountTransferTable() -> Html {
     let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
@@ -47,7 +46,11 @@ pub fn HoldingAccountTransferTable() -> Html {
         let max = max.to_string();
         let row = html!(
             <tr>
-                <td>{user.user_name.clone()}</td>
+                <td>
+                    <span class={classes!(if admin_state.connected_users.iter().any(|u| *u == user.id) {"text-success"} else {"text-danger"})}>
+                        {user.user_name.clone()}
+                    </span>
+                </td>
                 <td>
                     <NumberInput prefill_value={user.balance.to_string()} {onchange} min="0" {max} step="1" />
                 </td>

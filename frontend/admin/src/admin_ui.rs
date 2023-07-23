@@ -28,7 +28,7 @@ pub type SendToServer = Callback<AdminClientMessage>;
 #[function_component]
 pub fn AdminUserInterface() -> Html {
     let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
-    let send = ctx.send.clone();
+    let send = &ctx.send;
     let start_auction_cb = {
         let send = send.clone();
         Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuction))
@@ -128,7 +128,12 @@ pub struct AdminUiTabsProps {
 
 #[function_component]
 fn AdminUiTabs(props: &AdminUiTabsProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let admin_state = &ctx.admin_state;
+    let users = &ctx.users;
+
     html! {
+        <>
         <nav>
             <ul class="nav nav-pills nav-fill">
                 <li class="nav-item">
@@ -156,5 +161,12 @@ fn AdminUiTabs(props: &AdminUiTabsProps) -> Html {
                 </li>
             </ul>
         </nav>
+        <div class="alert alert-info">
+            {"Connected: "}
+            {admin_state.connected_users.len()}
+            {" out of "}
+            {users.len()}
+        </div>
+        </>
     }
 }
