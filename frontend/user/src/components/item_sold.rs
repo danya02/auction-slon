@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use common::{
     components::{ItemDisplay, MoneyDisplay, UserAccountCard},
     layout::{Container, VerticalStack},
@@ -5,9 +7,10 @@ use common::{
 use communication::{auction::state::AuctionItem, Money, UserAccountData};
 use yew::prelude::*;
 
+use crate::AppCtx;
+
 #[derive(Properties, PartialEq)]
 pub struct ItemSoldToYouProps {
-    pub my_account: UserAccountData,
     pub item: AuctionItem,
     pub sold_for: Money,
     pub confirmation_code: String,
@@ -16,6 +19,9 @@ pub struct ItemSoldToYouProps {
 
 #[function_component]
 pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+
     let mut contributions = props.contributions.clone();
     contributions.sort_by(|i, j| j.1.cmp(&i.1));
     let contributor_table = html! {
@@ -28,7 +34,7 @@ pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
             </thead>
             <tbody>
                 {for contributions.iter().map(|c| html!(
-                    <tr class={classes!((c.0.id==props.my_account.id).then_some("table-active"))}>
+                    <tr class={classes!((c.0.id==my_account.id).then_some("table-active"))}>
                         <td>
                             {c.0.user_name.clone()}
                         </td>
@@ -57,7 +63,6 @@ pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
 
 #[derive(Properties, PartialEq)]
 pub struct ItemSoldToSomeoneElseProps {
-    pub my_account: UserAccountData,
     pub item: AuctionItem,
     pub sold_for: Money,
     pub sold_to: UserAccountData,
@@ -66,6 +71,9 @@ pub struct ItemSoldToSomeoneElseProps {
 
 #[function_component]
 pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+
     let mut contributions = props.contributions.clone();
     contributions.sort_by(|i, j| j.1.cmp(&i.1));
     let contributor_table = html! {
@@ -78,7 +86,7 @@ pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
             </thead>
             <tbody>
                 {for contributions.iter().map(|c| html!(
-                    <tr class={classes!((c.0.id==props.my_account.id).then_some("table-active"))}>
+                    <tr class={classes!((c.0.id==my_account.id).then_some("table-active"))}>
                         <td>
                             {c.0.user_name.clone()}
                         </td>
@@ -91,11 +99,7 @@ pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
         </table>
     };
 
-    if props
-        .contributions
-        .iter()
-        .any(|i| i.0.id == props.my_account.id)
-    {
+    if props.contributions.iter().any(|i| i.0.id == my_account.id) {
         html! {
             <Container class="text-bg-warning">
                 <VerticalStack>

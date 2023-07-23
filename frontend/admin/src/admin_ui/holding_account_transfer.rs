@@ -1,25 +1,24 @@
+use std::rc::Rc;
+
 use common::components::NumberInput;
-use communication::{
-    admin_state::AdminState, AdminClientMessage, Money, UserAccountDataWithSecrets, WithTimestamp,
-};
+use communication::{AdminClientMessage, Money};
 use yew::prelude::*;
 
-use super::SendToServer;
+use crate::AppCtx;
 
-#[derive(Properties, PartialEq)]
-pub struct HoldingAccountTransferTableProps {
-    pub send: SendToServer,
-    pub admin_state: WithTimestamp<AdminState>,
-    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
-}
 
 #[function_component]
-pub fn HoldingAccountTransferTable(props: &HoldingAccountTransferTableProps) -> Html {
+pub fn HoldingAccountTransferTable() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let users = &ctx.users;
+    let send = &ctx.send;
+    let admin_state = &ctx.admin_state;
+
     // Table where first column is user's name, and second column is an input to transfer money to/from holding acct.
-    let mut rows = Vec::with_capacity(props.users.len());
-    for user in &*props.users {
+    let mut rows = Vec::with_capacity(users.len());
+    for user in users {
         let onchange = {
-            let send = props.send.clone();
+            let send = send.clone();
             let user_id = user.id;
             Callback::from(move |s: String| {
                 // Try parsing the input as a money value.
@@ -44,7 +43,7 @@ pub fn HoldingAccountTransferTable(props: &HoldingAccountTransferTableProps) -> 
         // because it would take until the user's balance really got transferred across the holding account
         // for this maximum to update properly.
         // Instead, if the user scrolls too far out, we'll reset the input at the next user data update.
-        let max = user.balance + (props.admin_state.holding_account_balance * 2);
+        let max = user.balance + (admin_state.holding_account_balance * 2);
         let max = max.to_string();
         let row = html!(
             <tr>

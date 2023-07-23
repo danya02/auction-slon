@@ -1,9 +1,12 @@
+use std::rc::Rc;
+
 use common::components::{ItemDisplay, UserAccountCard};
 use common::layout::{Container, VerticalStack};
 use communication::{auction::state::AuctionItem, AdminClientMessage, Money, UserAccountData};
 use yew::prelude::*;
 
-use super::SendToServer;
+use crate::AppCtx;
+
 
 #[derive(Properties, PartialEq)]
 pub struct ItemSoldDisplayProps {
@@ -11,14 +14,16 @@ pub struct ItemSoldDisplayProps {
     pub sold_to: UserAccountData,
     pub sold_for: Money,
     pub confirmation_code: String,
-    pub send: SendToServer,
     pub contributions: Vec<(UserAccountData, Money)>,
 }
 
 #[function_component]
 pub fn ItemSoldDisplay(props: &ItemSoldDisplayProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+
     let return_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             send.emit(AdminClientMessage::StartAuction);

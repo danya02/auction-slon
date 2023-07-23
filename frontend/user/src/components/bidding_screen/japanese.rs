@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use common::{
     components::{MoneyDisplay, UserAccountTable},
     layout::VerticalStack,
@@ -7,23 +9,27 @@ use communication::{
         actions::JapaneseAuctionAction,
         state::{JapaneseAuctionBidState, Sponsorship},
     },
-    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage,
+    UserClientMessage,
 };
 use yew::prelude::*;
 use yew_hooks::*;
+
+use crate::AppCtx;
 
 #[derive(Properties, PartialEq)]
 pub struct JapaneseAuctionBidInputProps {
     pub item_id: i64,
     pub state: JapaneseAuctionBidState,
-    pub send: Callback<Vec<u8>>,
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
 }
 
 #[function_component]
 pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+    let users = &ctx.users;
+    let sponsorships = &ctx.sponsorships;
+    let send = &ctx.send;
+
     let window = web_sys::window().expect("should have a window in this context");
     let performance = window
         .performance()
@@ -42,11 +48,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
                     &sponsorships,
                 ));
             },
-            (
-                props.my_account.id,
-                props.users.clone(),
-                props.sponsorships.clone(),
-            ),
+            (my_account.id, users.clone(), sponsorships.clone()),
         );
     }
 
@@ -55,7 +57,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         .state
         .get_arena()
         .iter()
-        .any(|i| props.my_account.id == i.id);
+        .any(|i| my_account.id == i.id);
     let locked_out_of_arena = match &props.state {
         JapaneseAuctionBidState::EnterArena { current_price, .. } => {
             current_price > &*available_balance
@@ -65,7 +67,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         } => {
             !currently_in_arena // If clock is running, we are locked out when we are not in the arena anymore
                 .iter()
-                .any(|i| i.id == props.my_account.id)
+                .any(|i| i.id == my_account.id)
         }
     };
 
@@ -93,12 +95,10 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         // and we are still in the arena, then we want to exit the arena.
         // The loop will stop as soon as the server recognizes our exit.
         if (!*pressed) && ((performance.now() - *changed_at) > repress_delay) && me_in_arena {
-            props
-                .send
-                .emit(encode(&UserClientMessage::JapaneseAuctionAction {
-                    item_id: props.item_id,
-                    action: JapaneseAuctionAction::ExitArena,
-                }));
+            send.emit(UserClientMessage::JapaneseAuctionAction {
+                item_id: props.item_id,
+                action: JapaneseAuctionAction::ExitArena,
+            });
         }
 
         // If the button is pressed, but we are not in the arena, and we could enter the arena,
@@ -108,12 +108,10 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         //  If the admin kicks us during the re-press countdown, we do nothing.)
         // Also: if we are locked out because we don't have enough money, we'll not be able to enter here.
         if *pressed && !me_in_arena && !locked_out_of_arena {
-            props
-                .send
-                .emit(encode(&UserClientMessage::JapaneseAuctionAction {
-                    item_id: props.item_id,
-                    action: JapaneseAuctionAction::EnterArena,
-                }));
+            send.emit(UserClientMessage::JapaneseAuctionAction {
+                item_id: props.item_id,
+                action: JapaneseAuctionAction::EnterArena,
+            });
         }
     }
 
@@ -222,7 +220,7 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
         communication::auction::state::ArenaVisibilityMode::Full => html!(
             <>
                 <h3>{currently_in_arena.len()}{" members taking part"}</h3>
-                <UserAccountTable accounts={currently_in_arena.to_vec()} users={props.users.clone()} sponsorships={props.sponsorships.clone()}/>
+                <UserAccountTable accounts={currently_in_arena.to_vec()} users={users.clone()} sponsorships={sponsorships.clone()}/>
             </>
         ),
         communication::auction::state::ArenaVisibilityMode::OnlyNumber => html!(

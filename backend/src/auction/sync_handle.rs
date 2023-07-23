@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, sync::Weak};
 
 use communication::{
     admin_state::AdminState,
@@ -40,6 +40,14 @@ pub struct AuctionSyncHandle {
     /// Holds the sponsorships currently in the database.
     /// No processing is applied to these. Figure it out yourself.
     pub sponsorship_state: watch::Receiver<Vec<Sponsorship>>,
+
+    /// Holds weak references to values held by user threads.
+    ///
+    /// When a user thread begins, it obtains an Rc to this value,
+    /// and its weak version is held here.
+    /// If the thread finishes, the weak reference will no longer resolve,
+    /// which means that the user is no longer connected.
+    pub connection_active_handles: Arc<Mutex<HashMap<i64, Weak<()>>>>,
 }
 
 impl AuctionSyncHandle {
@@ -102,6 +110,7 @@ impl AuctionSyncHandle {
         let (aetx, aerx) = mpsc::channel(100);
         let (adstx, adsrx) = watch::channel(AdminState {
             holding_account_balance: 0,
+            connected_users: vec![],
         });
         let (sptx, sprx) = watch::channel(vec![]);
 
@@ -114,6 +123,7 @@ impl AuctionSyncHandle {
             admin_state: adsrx,
             connection_drop_handles: Arc::new(Mutex::new(HashMap::new())),
             sponsorship_state: sprx,
+            connection_active_handles: Arc::new(Mutex::new(HashMap::new())),
         };
 
         tokio::spawn(auction_manager(

@@ -296,7 +296,6 @@ pub async fn run_japanese_auction(
                 if !arena_is_closed {continue;}
 
                 current_price += 1;
-                // TODO: apply some kind of transformation to `price_increase_interval`
                 let sponsorships = sync_handle.sponsorship_state.borrow().clone();
                 let users = forget_user_secrets(sync_handle.auction_members.borrow().clone());
 

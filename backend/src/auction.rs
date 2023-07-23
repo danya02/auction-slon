@@ -7,7 +7,7 @@ use communication::{
 };
 use rand::prelude::*;
 use sqlx::{query, SqlitePool};
-use tokio::sync::*;
+use tokio::{sync::*, time::interval};
 use tracing::{debug, warn};
 
 mod auction_event;
@@ -104,22 +104,38 @@ async fn auction_manager_inner(
 
     // Gather the initial admin state and send it.
     let get_admin_state = {
-        async move |pool: &SqlitePool| -> anyhow::Result<AdminState> {
+        async move |pool: &SqlitePool,
+                    sync_handle: &AuctionSyncHandle|
+                    -> anyhow::Result<AdminState> {
             let holding_account_balance =
                 query!("SELECT value FROM kv_data_int WHERE key='holding_balance'")
                     .fetch_one(pool)
                     .await?
                     .value;
+
+            // To get the list of connected users, we'll go through the HashMap of connected handles,
+            // and check whether each of those is still alive
+            // (and if not, delete the entry)
+            let connection_active_handles_ref = sync_handle.connection_active_handles.clone();
+            let connected_users = {
+                let mut connection_active_handles = connection_active_handles_ref.lock().await;
+                connection_active_handles.retain(|_, weakref| weakref.upgrade().is_some());
+                connection_active_handles.iter().map(|(k, _v)| *k).collect()
+            };
+
             let state = AdminState {
                 holding_account_balance: holding_account_balance as Money,
+                connected_users,
             };
             Ok(state)
         }
     };
 
-    admin_state_tx.send_replace(get_admin_state(&pool).await?);
+    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
 
     sponsorship_state_tx.send_replace(get_sponsorship_state(pool).await?);
+
+    let mut admin_data_refresh_interval = interval(Duration::from_secs(1));
 
     loop {
         tokio::select! {
@@ -131,6 +147,11 @@ async fn auction_manager_inner(
 
             _ = user_data_refresh_interval.tick() => {
                 auction_member_tx.send_replace(get_user_state(pool).await?);
+            },
+
+            // This one is definitely necessary: the admin state can change by external means (user connects/disconnects)
+            _ = admin_data_refresh_interval.tick() => {
+                    admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
             },
 
 
@@ -314,7 +335,7 @@ async fn auction_manager_inner(
                             Some(t) => t.balance as Money,
                             None => {
                                 warn!("Tried to transfer across holding account for user ID {user_id}, which does not exist -- desync?");
-                                admin_state_tx.send_replace(get_admin_state(&pool).await?);
+                                admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
                                 continue;
                             }
                         };
@@ -349,7 +370,7 @@ async fn auction_manager_inner(
                         query!("UPDATE kv_data_int SET value=? WHERE key='holding_balance'", new_holding_balance).execute(&mut tx).await?;
                         tx.commit().await?;
 
-                        admin_state_tx.send_replace(get_admin_state(&pool).await?);
+                        admin_state_tx.send_replace(get_admin_state(&pool, &sync_handle).await?);
                         auction_member_tx.send_replace(get_user_state(pool).await?);
 
                     },

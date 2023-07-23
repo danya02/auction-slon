@@ -1,25 +1,29 @@
+use std::rc::Rc;
+
 use common::{
     components::{ItemDisplay, MoneyDisplay, UserAccountCard, UserAccountTable},
     layout::Container,
 };
 use communication::{
-    auction::state::{ArenaVisibilityMode, BiddingState, JapaneseAuctionBidState, Sponsorship},
+    auction::state::{ArenaVisibilityMode, BiddingState, JapaneseAuctionBidState},
     AdminClientMessage, Money, UserAccountData,
 };
 use yew::prelude::*;
 
-use super::SendToServer;
+use crate::AppCtx;
 
 #[derive(Properties, PartialEq)]
 pub struct ShowBidProgressProps {
     pub bid_state: BiddingState,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
-    pub send: SendToServer,
 }
 
 #[function_component]
 pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let users = &ctx.users;
+    let send = &ctx.send;
+    let sponsorships = &ctx.sponsorships;
+
     let bidding_on = html! {
         <>
             <h3>{"Bidding on this item:"}</h3>
@@ -35,7 +39,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             max_millis_until_commit,
         } => {
             let increase_bet_time_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 let mmuc = *max_millis_until_commit;
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
@@ -45,7 +49,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 })
             };
             let decrease_bet_time_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 let mmuc = *max_millis_until_commit;
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
@@ -74,7 +78,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             let item_id = props.bid_state.item.id;
             // This callback gets a UserAccountData, and returns a button for kicking that member from the arena
             let get_kick_btn_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |user: UserAccountData| {
                     // This is the inner generated callback, which actually performs the kick for this specific user
                     let kick_press_cb = {
@@ -96,7 +100,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
             // These two callbacks change the clock rate
             let clock_rate_up_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     let cr = current_clock_rate as f64;
@@ -107,7 +111,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 })
             };
             let clock_rate_down_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     let cr = current_clock_rate as f64;
@@ -120,7 +124,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
             // These three callbacks set the visibility mode.
             let set_full_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
@@ -129,7 +133,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 })
             };
             let set_only_number_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
@@ -139,7 +143,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
             };
 
             let set_nothing_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     send.emit(AdminClientMessage::SetJapaneseVisibilityMode(
@@ -162,7 +166,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                         )
                     } else {
                         let start_closing_arena_cb = {
-                            let send = props.send.clone();
+                            let send = send.clone();
                             Callback::from(move |e: MouseEvent| {
                                 e.prevent_default();
                                 send.emit(AdminClientMessage::StartClosingJapaneseArena);
@@ -198,7 +202,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
                             <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
                                 <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                                <UserAccountTable accounts={currently_in_arena.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
+                                <UserAccountTable accounts={currently_in_arena.clone()} users={users.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                             </div>
                         </>
                     }
@@ -230,7 +234,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
                         <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
                             <h3>{currently_in_arena.len()}{" members in arena"}</h3>
-                            <UserAccountTable accounts={currently_in_arena.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
+                            <UserAccountTable accounts={currently_in_arena.clone()} users={users.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                         </div>
                     </>
                 },
@@ -238,7 +242,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
         }
     };
     let return_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             send.emit(AdminClientMessage::StartAuction);

@@ -1,15 +1,20 @@
+use std::rc::Rc;
+
 use common::{
     components::{MoneyDisplay, UserAccountCard},
     layout::{Container, VerticalStack},
 };
 use communication::{
-    auction::state::{BiddingState, Sponsorship},
-    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage, UserSaleMode,
+    auction::state::{BiddingState, JapaneseAuctionBidState},
+    UserClientMessage, UserSaleMode,
 };
 use yew::prelude::*;
 
-use crate::components::bidding_screen::{
-    sponsorship_edit::SponsorshipEdit, sponsorship_mode_set::SponsorshipModeSet,
+use crate::{
+    components::bidding_screen::{
+        sponsorship_edit::SponsorshipEdit, sponsorship_mode_set::SponsorshipModeSet,
+    },
+    AppCtx,
 };
 
 use {english::EnglishAuctionBidInput, japanese::JapaneseAuctionBidInput};
@@ -22,34 +27,30 @@ pub mod sponsorship_mode_set;
 #[derive(Properties, PartialEq)]
 pub struct BiddingScreenProps {
     pub bid_state: BiddingState,
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
-    pub send: Callback<Vec<u8>>,
 }
 
 #[function_component]
 pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+    let my_account = &ctx.my_account;
+
     let item = &props.bid_state.item;
     // These tabs at the top allow you to choose between betting and sponsoring mode.
     let mode_tabs = {
-        let mode = props.my_account.sale_mode.clone();
+        let mode = my_account.sale_mode.clone();
         let set_bidding_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetSaleMode(
-                    UserSaleMode::Bidding,
-                )));
+                send.emit(UserClientMessage::SetSaleMode(UserSaleMode::Bidding));
             })
         };
         let set_sponsoring_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetSaleMode(
-                    UserSaleMode::Sponsoring,
-                )));
+                send.emit(UserClientMessage::SetSaleMode(UserSaleMode::Sponsoring));
             })
         };
 
@@ -69,7 +70,7 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
         )
     };
 
-    let i_am_bidding = props.my_account.sale_mode == UserSaleMode::Bidding;
+    let i_am_bidding = my_account.sale_mode == UserSaleMode::Bidding;
 
     let bid_ui = match &props.bid_state.active_bid {
         communication::auction::state::ActiveBidState::EnglishAuctionBid {
@@ -79,7 +80,7 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
             seconds_until_commit,
             max_millis_until_commit,
         } => {
-            let bid_is_me = current_bidder.id == props.my_account.id;
+            let bid_is_me = current_bidder.id == my_account.id;
             let english_screen = if i_am_bidding {
                 html!(
                         <Container class={classes!(bid_is_me.then_some("bg-success"))}>
@@ -87,20 +88,26 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                                 <h1>
                                     {"Bidding on: "}{&item.name}
                                 </h1>
-                                <SponsorshipModeSet my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} send={props.send.clone()} />
+                                <SponsorshipModeSet />
                                 <p>
                                     {"Current top bid: "}<MoneyDisplay money={current_bid_amount} />
                                 </p>
                                 <UserAccountCard account={current_bidder.clone()} />
-                                <EnglishAuctionBidInput item_id={item.id} current_bid={current_bid_amount} increment={minimum_increment} seconds_left={seconds_until_commit} {max_millis_until_commit} send={props.send.clone()} my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} />
+                                <EnglishAuctionBidInput item_id={item.id} current_bid={current_bid_amount} increment={minimum_increment} seconds_left={seconds_until_commit} {max_millis_until_commit} />
                             </VerticalStack>
                         </Container>
                 )
             } else {
                 html!(
                     <>
-                        <div class="alert alert-info">{"current auction info"}</div>
-                        <SponsorshipEdit my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} send={props.send.clone()} bid_state={props.bid_state.clone()}/>
+                        <div class="alert alert-info">
+                            {"Item for sale: "}{&item.name}{"; "}
+                            {"Current top bid: "}
+                            <MoneyDisplay money={current_bid_amount} />
+                            {" by "}
+                            {&current_bidder.user_name}
+                        </div>
+                        <SponsorshipEdit bid_state={props.bid_state.clone()}/>
                     </>
                 )
             };
@@ -119,16 +126,48 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                             <h1>
                                 {"Bidding on: "}{&item.name}
                             </h1>
-                            <SponsorshipModeSet my_account={props.my_account.clone()} send={props.send.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} />
-                            <JapaneseAuctionBidInput item_id={item.id} send={props.send.clone()} state={state.clone()} my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} />
+                            <SponsorshipModeSet  />
+                            <JapaneseAuctionBidInput item_id={item.id} state={state.clone()} />
                         </VerticalStack>
                     </Container>
                 )
             } else {
                 html!(
                     <Container>
-                        <div class="alert alert-info">{"current auction info"}</div>
-                        <SponsorshipEdit my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} send={props.send.clone()} bid_state={props.bid_state.clone()}/>
+                        <div class="alert alert-info">
+                            {"Item for sale: "}{&item.name}{";"}
+                            {
+                                match state {
+                                    JapaneseAuctionBidState::EnterArena {
+                                        currently_in_arena,
+                                        current_price,
+                                        ..
+                                    } => {
+                                        html!(
+                                            <>
+                                            {"Starting price:"}
+                                            <MoneyDisplay money={current_price} />
+                                            {"; bids placed: "}{currently_in_arena.len()}
+                                            </>
+                                        )
+                                    },
+                                    JapaneseAuctionBidState::ClockRunning {
+                                        currently_in_arena,
+                                        current_price,
+                                        ..
+                                    } => {
+                                        html!(
+                                            <>
+                                            {"Current price:"}
+                                            <MoneyDisplay money={current_price} />
+                                            {"; remaining bids: "}{currently_in_arena.len()}
+                                            </>
+                                        )
+                                    },
+                                }
+                            }
+                        </div>
+                        <SponsorshipEdit bid_state={props.bid_state.clone()}/>
                     </Container>
                 )
             };

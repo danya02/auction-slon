@@ -1,49 +1,40 @@
+use std::rc::Rc;
+
 use common::components::{MoneyDisplay, NumberInput, TextInput};
-use communication::{
-    AdminClientMessage, ItemState, Money, UserAccountDataWithSecrets, WithTimestamp,
-};
+use communication::{AdminClientMessage, Money};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
-use super::SendToServer;
-
-#[derive(Properties, PartialEq)]
-pub struct SetupAuctionProps {
-    pub send: SendToServer,
-    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
-    pub items: WithTimestamp<Vec<ItemState>>,
-}
+use crate::AppCtx;
 
 #[function_component]
-pub fn SetupAuction(props: &SetupAuctionProps) -> Html {
+pub fn SetupAuction() -> Html {
     html! {
         <div class="row">
             <div class="col-6">
                 <h2>{"Edit users"}</h2>
-                <UserSetup users={props.users.clone()} send={props.send.clone()} />
+                <UserSetup />
             </div>
             <div class="col-6">
                 <h2>{"Edit items"}</h2>
-                <ItemSetup items={props.items.clone()} send={props.send.clone()} />
+                <ItemSetup />
             </div>
         </div>
     }
 }
 
-#[derive(Properties, PartialEq)]
-struct UserSetupProps {
-    pub send: SendToServer,
-    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
-}
-
 #[function_component]
-fn UserSetup(props: &UserSetupProps) -> Html {
-    let mut rows = Vec::with_capacity(props.users.len());
+fn UserSetup() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+    let users = &ctx.users;
 
-    for user in &*props.users {
+    let mut rows = Vec::with_capacity(users.len());
+
+    for user in users {
         let commit_name_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             let user_id = user.id;
 
             Callback::from(move |s: String| {
@@ -55,7 +46,7 @@ fn UserSetup(props: &UserSetupProps) -> Html {
         };
 
         let commit_balance_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             let user_id = user.id;
 
             Callback::from(move |s: String| {
@@ -67,7 +58,7 @@ fn UserSetup(props: &UserSetupProps) -> Html {
         };
 
         let delete_user_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             let user_id = user.id;
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
@@ -106,7 +97,7 @@ fn UserSetup(props: &UserSetupProps) -> Html {
 
     let add_user_cb = {
         let new_user_name = new_user_name.clone();
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             let name = (*new_user_name).clone();
@@ -142,24 +133,21 @@ fn UserSetup(props: &UserSetupProps) -> Html {
     }
 }
 
-#[derive(Properties, PartialEq)]
-struct ItemSetupProps {
-    pub send: SendToServer,
-    pub items: WithTimestamp<Vec<ItemState>>,
-}
-
 #[function_component]
-fn ItemSetup(props: &ItemSetupProps) -> Html {
-    let mut rows = Vec::with_capacity(props.items.len());
+fn ItemSetup() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let items = &ctx.items;
+    let send = &ctx.send;
+    let mut rows = Vec::with_capacity(items.len());
 
-    for item in &*props.items {
+    for item in &*items {
         let item_id = item.item.id;
 
         let item_state_component = match &item.state {
             communication::ItemStateValue::Sellable => html!(<span>{"Sellable"}</span>),
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => {
                 let reset_sale_status_cb = {
-                    let send = props.send.clone();
+                    let send = send.clone();
                     Callback::from(move |e: MouseEvent| {
                         e.prevent_default();
                         send.emit(AdminClientMessage::ClearSaleStatus { id: item_id });
@@ -175,7 +163,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         };
 
         let commit_name_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |s: String| {
                 send.emit(AdminClientMessage::ChangeItemName {
                     id: item_id,
@@ -185,7 +173,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         };
 
         let commit_initial_price_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |s: String| {
                 send.emit(AdminClientMessage::ChangeItemInitialPrice {
                     id: item_id,
@@ -195,7 +183,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
         };
 
         let delete_item_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
                 send.emit(AdminClientMessage::DeleteItem { id: item_id });
@@ -236,7 +224,7 @@ fn ItemSetup(props: &ItemSetupProps) -> Html {
 
     let add_item_cb = {
         let new_item_name = new_item_name.clone();
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             let name = (*new_item_name).clone();

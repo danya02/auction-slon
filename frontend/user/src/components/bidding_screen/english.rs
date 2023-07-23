@@ -1,25 +1,28 @@
+use std::rc::Rc;
+
 use common::components::MoneyDisplay;
-use communication::{
-    auction::state::Sponsorship, encode, Money, UserAccountData, UserAccountDataWithSecrets,
-    UserClientMessage,
-};
+use communication::{auction::state::Sponsorship, Money, UserClientMessage};
 use yew::prelude::*;
+
+use crate::AppCtx;
 
 #[derive(Properties, PartialEq)]
 pub struct EnglishAuctionBidInputProps {
     pub item_id: i64,
     pub current_bid: Money,
     pub increment: Money,
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
     pub seconds_left: f32,
     pub max_millis_until_commit: u128,
-    pub send: Callback<Vec<u8>>,
 }
 
 #[function_component]
 pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+    let users = &ctx.users;
+    let sponsorships = &ctx.sponsorships;
+    let send = &ctx.send;
+
     let selected_bid = use_state_eq(|| props.current_bid);
 
     let available_balance = use_state(|| 0);
@@ -33,11 +36,7 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
                     &sponsorships,
                 ));
             },
-            (
-                props.my_account.id,
-                props.users.clone(),
-                props.sponsorships.clone(),
-            ),
+            (my_account.id, users.clone(), sponsorships.clone()),
         );
     }
 
@@ -58,14 +57,14 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
 
     let send_cb = {
         let selected_bid = selected_bid.clone();
-        let send = props.send.clone();
+        let send = send.clone();
         let item_id = props.item_id;
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
-            send.emit(encode(&UserClientMessage::BidInEnglishAuction {
+            send.emit(UserClientMessage::BidInEnglishAuction {
                 item_id,
                 bid_amount: *selected_bid,
-            }))
+            })
         })
     };
 

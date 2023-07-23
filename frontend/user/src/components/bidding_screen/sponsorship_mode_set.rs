@@ -1,47 +1,43 @@
+use std::rc::Rc;
+
 use common::components::MoneyDisplay;
 use communication::{
     auction::state::{Sponsorship, SponsorshipStatus},
-    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage,
+    UserClientMessage,
 };
 use yew::prelude::*;
 
-#[derive(Properties, PartialEq)]
-pub struct SponsorshipModeSetProps {
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
-    pub send: Callback<Vec<u8>>,
-}
+use crate::AppCtx;
 
 #[function_component]
-pub fn SponsorshipModeSet(props: &SponsorshipModeSetProps) -> Html {
-    let my_sponsors_count = props
-        .sponsorships
+pub fn SponsorshipModeSet() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+    let users = &ctx.users;
+    let sponsorships = &ctx.sponsorships;
+    let send = &ctx.send;
+
+    let my_sponsors_count = sponsorships
         .iter()
-        .filter(|s| s.status == SponsorshipStatus::Active && s.recepient_id == props.my_account.id)
+        .filter(|s| s.status == SponsorshipStatus::Active && s.recepient_id == my_account.id)
         .count();
 
-    let available_balance = Sponsorship::resolve_available_balance(
-        props.my_account.id,
-        &props.users,
-        &props.sponsorships,
-    );
+    let available_balance =
+        Sponsorship::resolve_available_balance(my_account.id, users, sponsorships);
 
-    let sponsorship_code_display = if let Some(code) = &props.my_account.sponsorship_code {
+    let sponsorship_code_display = if let Some(code) = &my_account.sponsorship_code {
         let refresh_code_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::RegenerateSponsorshipCode));
+                send.emit(UserClientMessage::RegenerateSponsorshipCode);
             })
         };
         let close_sponsors_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetIsAcceptingSponsorships(
-                    false,
-                )));
+                send.emit(UserClientMessage::SetIsAcceptingSponsorships(false));
             })
         };
         html!(<p>
@@ -51,10 +47,10 @@ pub fn SponsorshipModeSet(props: &SponsorshipModeSetProps) -> Html {
             </p>)
     } else {
         let open_sponsors_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetIsAcceptingSponsorships(true)));
+                send.emit(UserClientMessage::SetIsAcceptingSponsorships(true));
             })
         };
 
@@ -65,7 +61,7 @@ pub fn SponsorshipModeSet(props: &SponsorshipModeSetProps) -> Html {
     };
 
     let sponsors_data = html!(
-        <p>{"Current sponsors: "}{my_sponsors_count}{"; total balance available for bids:"}<MoneyDisplay money={available_balance}/></p>
+        <p>{"Current sponsors: "}{my_sponsors_count}{"; total balance available for bids: "}<MoneyDisplay money={available_balance}/></p>
     );
 
     html!(

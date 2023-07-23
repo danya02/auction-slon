@@ -1,25 +1,29 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use common::components::MoneyDisplay;
 use communication::{
     auction::state::{BiddingState, Sponsorship, SponsorshipStatus},
-    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage,
+    UserClientMessage,
 };
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
+use crate::AppCtx;
+
 #[derive(Properties, PartialEq)]
 pub struct SponsorshipEditProps {
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
-    pub send: Callback<Vec<u8>>,
     pub bid_state: Option<BiddingState>,
 }
 
 #[function_component]
 pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let my_account = &ctx.my_account;
+    let users = &ctx.users;
+    let sponsorships = &ctx.sponsorships;
+    let send = &ctx.send;
+
     // Get the list of users who need to be highlighted.
     // In an English auction, it is the single user who's currently bidding.
     // In a Japanese auction, it is all the users who are in the arena,
@@ -64,13 +68,12 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
     // Replace each with the newest version, or with the one that's Active.
 
     let mut my_sponsorships = HashMap::new();
-    let my_sponsorships_full_count = props
-        .sponsorships
+    let my_sponsorships_full_count = sponsorships
         .iter()
-        .filter(|s| s.donor_id == props.my_account.id)
+        .filter(|s| s.donor_id == my_account.id)
         .count();
-    for s in &props.sponsorships {
-        if s.donor_id != props.my_account.id {
+    for s in sponsorships {
+        if s.donor_id != my_account.id {
             continue;
         }
 
@@ -91,8 +94,7 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
     }
 
     // Get the list of members who are available for sponsoring, but we aren't sponsoring.
-    let could_sponsor = props
-        .users
+    let could_sponsor = users
         .iter()
         .filter(|u| u.is_accepting_sponsorships && !my_sponsorships.contains_key(&u.id));
 
@@ -109,7 +111,7 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
                 {
                     for
                     could_sponsor.map(|u| {
-                        let available_balance = Sponsorship::resolve_available_balance(u.id, &props.users, &props.sponsorships);
+                        let available_balance = Sponsorship::resolve_available_balance(u.id, users, sponsorships);
                         html!(
                             <tr class={classes!(users_to_highlight.iter().any(|i| *i == u.id).then_some("table-active"))}>
                                 <td>{&u.user_name}</td>
@@ -130,8 +132,7 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
         let mut rows = vec![];
 
         for (rcpt_id, sponsorship) in my_sponsorships.iter() {
-            let rcpt = props
-                .users
+            let rcpt = users
                 .iter()
                 .find(|u| u.id == *rcpt_id)
                 .expect("No user receiving sponsorship in list of members?");
@@ -146,13 +147,13 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
                 }
                 SponsorshipStatus::Active => {
                     let retract_cb = {
-                        let send = props.send.clone();
+                        let send = send.clone();
                         Callback::from(move |e: MouseEvent| {
                             e.prevent_default();
-                            send.emit(encode(&UserClientMessage::SetSponsorshipStatus {
+                            send.emit(UserClientMessage::SetSponsorshipStatus {
                                 sponsorship_id,
                                 status: SponsorshipStatus::Retracted,
-                            }))
+                            })
                         })
                     };
                     let can_sub_100 = sponsorship.balance_remaining >= 100;
@@ -160,13 +161,13 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
                     let can_sub_1 = sponsorship.balance_remaining >= 1;
 
                     let set_cb = |what| {
-                        let send = props.send.clone();
+                        let send = send.clone();
                         Callback::from(move |e: MouseEvent| {
                             e.prevent_default();
-                            send.emit(encode(&UserClientMessage::SetSponsorshipBalance {
+                            send.emit(UserClientMessage::SetSponsorshipBalance {
                                 sponsorship_id,
                                 balance: what,
-                            }))
+                            })
                         })
                     };
                     let b = sponsorship.balance_remaining;
@@ -211,7 +212,7 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
                 <>
                     <tr class={classes!(users_to_highlight.iter().any(|i| i == rcpt_id).then_some("table-active"))}>
                         <td>{&rcpt.user_name}</td>
-                        <td><MoneyDisplay money={Sponsorship::resolve_available_balance(*rcpt_id, &props.users, &props.sponsorships)} /></td>
+                        <td><MoneyDisplay money={Sponsorship::resolve_available_balance(*rcpt_id, users, sponsorships)} /></td>
                     </tr>
                     <tr class={classes!(users_to_highlight.iter().any(|i| i == rcpt_id).then_some("table-active"))}>
                         <td colspan="2">{sponsorship_status}</td>
@@ -249,15 +250,15 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
 
     let sponsor_code_oninput_cb = {
         let sponsor_code_value = sponsor_code_value.clone();
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: InputEvent| {
             let event: Event = e.dyn_into().unwrap_throw();
             let event_target = event.target().unwrap_throw();
             let target: HtmlInputElement = event_target.dyn_into().unwrap_throw();
             sponsor_code_value.set(target.value());
-            send.emit(encode(&UserClientMessage::TryActivateSponsorshipCode(
+            send.emit(UserClientMessage::TryActivateSponsorshipCode(
                 target.value(),
-            )));
+            ));
         })
     };
 

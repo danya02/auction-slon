@@ -1,35 +1,39 @@
+use std::rc::Rc;
+
 use common::components::ItemDisplay;
 use communication::{auction::state::AuctionItem, AdminClientMessage};
 use yew::prelude::*;
 
-use super::SendToServer;
+use crate::AppCtx;
 
 #[derive(Properties, PartialEq)]
 pub struct ConfirmItemProps {
     pub item: AuctionItem,
-    pub send: SendToServer,
 }
 
 #[function_component]
 pub fn ConfirmItemToSell(props: &ConfirmItemProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+
     let item = &props.item;
     let item_id = item.id;
     let reset_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             send.emit(AdminClientMessage::StartAuction);
         })
     };
     let start_as_english_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             send.emit(AdminClientMessage::RunEnglishAuction(item_id));
         })
     };
     let start_as_japanese_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             send.emit(AdminClientMessage::RunJapaneseAuction(item_id));

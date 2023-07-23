@@ -1,18 +1,19 @@
+use std::rc::Rc;
+
 use common::{
     components::{AuctionReportView, MoneyDisplay},
     layout::{Container, HorizontalStack, VerticalStack},
 };
-use communication::{
-    admin_state::AdminState,
-    auction::state::{AuctionState, Sponsorship},
-    AdminClientMessage, ItemState, UserAccountDataWithSecrets, WithTimestamp,
-};
+use communication::{auction::state::AuctionState, AdminClientMessage};
 use yew::prelude::*;
 
-use crate::admin_ui::{
-    choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell,
-    holding_account_transfer::HoldingAccountTransferTable, item_sold::ItemSoldDisplay,
-    show_bid_progress::ShowBidProgress,
+use crate::{
+    admin_ui::{
+        choose_item::ChooseItemToSell, confirm_item::ConfirmItemToSell,
+        holding_account_transfer::HoldingAccountTransferTable, item_sold::ItemSoldDisplay,
+        show_bid_progress::ShowBidProgress,
+    },
+    AppCtx,
 };
 
 mod choose_item;
@@ -22,34 +23,26 @@ mod item_sold;
 mod setup;
 mod show_bid_progress;
 
-#[derive(Properties, PartialEq)]
-pub struct AdminUiProps {
-    pub auction_state: WithTimestamp<AuctionState>,
-    pub admin_state: WithTimestamp<AdminState>,
-    pub users: WithTimestamp<Vec<UserAccountDataWithSecrets>>,
-    pub items: WithTimestamp<Vec<ItemState>>,
-    pub sponsorships: WithTimestamp<Vec<Sponsorship>>,
-    pub send: SendToServer,
-}
-
 pub type SendToServer = Callback<AdminClientMessage>;
 
 #[function_component]
-pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
+pub fn AdminUserInterface() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = ctx.send.clone();
     let start_auction_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuction))
     };
     let start_auction_anew_cb = {
-        let send = props.send.clone();
+        let send = send.clone();
         Callback::from(move |_: MouseEvent| send.emit(AdminClientMessage::StartAuctionAnew))
     };
 
-    let content = match &*props.auction_state {
+    let content = match &ctx.auction_state {
         AuctionState::WaitingForAuction => html! {
             <VerticalStack>
                 <h1>{"Auction is not yet started"}</h1>
-                <setup::SetupAuction send={props.send.clone()} users={props.users.clone()} items={props.items.clone()} />
+                <setup::SetupAuction/>
                 <button class="btn btn-success" onclick={start_auction_cb}>{"Begin auction"}</button>
             </VerticalStack>
         },
@@ -63,7 +56,7 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
 
         AuctionState::WaitingForItem => {
             let conclude_cb = {
-                let send = props.send.clone();
+                let send = send.clone();
                 Callback::from(move |e: MouseEvent| {
                     e.prevent_default();
                     send.emit(AdminClientMessage::FinishAuction);
@@ -73,13 +66,13 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
                 <HorizontalStack>
                     <VerticalStack>
                         <h1>{"Please choose an item to auction off next"}</h1>
-                        <ChooseItemToSell send={props.send.clone()} items={props.items.clone()} admin_state={props.admin_state.clone()} />
+                        <ChooseItemToSell />
                         <button class="btn btn-danger" onclick={conclude_cb}>{"Conclude auction"}</button>
                     </VerticalStack>
                     <VerticalStack>
                         <h1>{"Transfer money manually"}</h1>
                         {
-                            if props.admin_state.holding_account_balance == 0 {
+                            if ctx.admin_state.holding_account_balance == 0 {
                                 html!(
                                     <div class="alert alert-success">
                                         {"Holding account balance: "}<MoneyDisplay money={0} />
@@ -88,22 +81,22 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
                             } else {
                                 html!(
                                     <div class="alert alert-warning">
-                                        {"Holding account balance: "}<MoneyDisplay money={props.admin_state.holding_account_balance} />
+                                        {"Holding account balance: "}<MoneyDisplay money={ctx.admin_state.holding_account_balance} />
                                     </div>
                                 )
                             }
                         }
-                        <HoldingAccountTransferTable send={props.send.clone()} admin_state={props.admin_state.clone()} users={props.users.clone()}/>
+                        <HoldingAccountTransferTable/>
                     </VerticalStack>
                 </HorizontalStack>
             }
         }
 
         AuctionState::ShowingItemBeforeBidding(item) => {
-            html!(<ConfirmItemToSell item={item.clone()} send={props.send.clone()} />)
+            html!(<ConfirmItemToSell item={item.clone()} />)
         }
         AuctionState::Bidding(bid_state) => {
-            html!(<ShowBidProgress bid_state={bid_state.clone()} send={props.send.clone()} users={props.users.data.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={props.sponsorships.data.clone()}/>)
+            html!(<ShowBidProgress bid_state={bid_state.clone()} />)
         }
         AuctionState::SoldToSomeoneElse { .. } => unreachable!(),
         AuctionState::SoldToYou { .. } => unreachable!(),
@@ -114,13 +107,13 @@ pub fn AdminUserInterface(props: &AdminUiProps) -> Html {
             confirmation_code,
             contributions,
         } => {
-            html!(<ItemSoldDisplay item={item.clone()} sold_to={sold_to.clone()} sold_for={*sold_for} confirmation_code={confirmation_code.clone()} send={props.send.clone()} contributions={contributions.clone()} />)
+            html!(<ItemSoldDisplay item={item.clone()} sold_to={sold_to.clone()} sold_for={*sold_for} confirmation_code={confirmation_code.clone()} contributions={contributions.clone()} />)
         }
     };
 
     html! {
         <>
-            <AdminUiTabs state={(*props.auction_state).clone()}/>
+            <AdminUiTabs state={(ctx.auction_state).clone()}/>
             <Container>
                 {content}
             </Container>

@@ -1,47 +1,50 @@
+use std::rc::Rc;
+
 use common::{
     components::{ItemDisplay, MoneyDisplay},
     layout::Container,
 };
 use communication::{
     auction::state::{AuctionItem, Sponsorship, SponsorshipStatus},
-    encode, UserAccountData, UserAccountDataWithSecrets, UserClientMessage, UserSaleMode,
+    UserClientMessage, UserSaleMode,
 };
 use yew::prelude::*;
 
-use crate::components::bidding_screen::{
-    sponsorship_edit::SponsorshipEdit, sponsorship_mode_set::SponsorshipModeSet,
+use crate::{
+    components::bidding_screen::{
+        sponsorship_edit::SponsorshipEdit, sponsorship_mode_set::SponsorshipModeSet,
+    },
+    AppCtx,
 };
 
 #[derive(Properties, PartialEq)]
 pub struct ShowItemProps {
     pub item: AuctionItem,
-    pub my_account: UserAccountDataWithSecrets,
-    pub users: Vec<UserAccountData>,
-    pub sponsorships: Vec<Sponsorship>,
-    pub send: Callback<Vec<u8>>,
 }
 
 #[function_component]
 pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+    let users = &ctx.users;
+    let sponsorships = &ctx.sponsorships;
+    let my_account = &ctx.my_account;
+
     // These tabs at the top allow you to choose between betting and sponsoring mode.
     let mode_tabs = {
-        let mode = props.my_account.sale_mode.clone();
+        let mode = my_account.sale_mode.clone();
         let set_bidding_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetSaleMode(
-                    UserSaleMode::Bidding,
-                )));
+                send.emit(UserClientMessage::SetSaleMode(UserSaleMode::Bidding));
             })
         };
         let set_sponsoring_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |e: MouseEvent| {
                 e.prevent_default();
-                send.emit(encode(&UserClientMessage::SetSaleMode(
-                    UserSaleMode::Sponsoring,
-                )));
+                send.emit(UserClientMessage::SetSaleMode(UserSaleMode::Sponsoring));
             })
         };
 
@@ -61,14 +64,14 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
         )
     };
 
-    let i_am_bidding = props.my_account.sale_mode == UserSaleMode::Bidding;
+    let i_am_bidding = my_account.sale_mode == UserSaleMode::Bidding;
     let screen = if i_am_bidding {
         let maybe_sponsor_balance = match Sponsorship::resolve_available_balance(
-            props.my_account.id,
-            &props.users,
-            &props.sponsorships,
+            my_account.id,
+            users,
+            sponsorships,
         ) {
-            myself if myself == props.my_account.balance => {
+            myself if myself == my_account.balance => {
                 // If nobody is sponsoring me, do not show any balance here
                 html!()
             }
@@ -80,23 +83,22 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
         };
 
         let sponsor_table = 'sponsortable: {
-            let rows = props
-                .sponsorships
+            let rows = sponsorships
                 .iter()
-                .filter(|s| s.recepient_id == props.my_account.id)
+                .filter(|s| s.recepient_id == my_account.id)
                 .filter(|s| s.status == SponsorshipStatus::Active)
-                .map(|s| (s, props.users.iter().find(|u| u.id == s.donor_id)))
+                .map(|s| (s, users.iter().find(|u| u.id == s.donor_id)))
                 .filter_map(|(s, u)| u.is_some().then(|| (s, u.unwrap())))
                 .map(|(s, u)| {
                     let cancel_cb = {
                         let s_id = s.id;
-                        let send = props.send.clone();
+                        let send = send.clone();
                         Callback::from(move |e: MouseEvent| {
                             e.prevent_default();
-                            send.emit(encode(&UserClientMessage::SetSponsorshipStatus {
+                            send.emit(UserClientMessage::SetSponsorshipStatus {
                                 sponsorship_id: s_id,
                                 status: SponsorshipStatus::Rejected,
-                            }));
+                            });
                         })
                     };
                     html!(
@@ -140,9 +142,9 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
             <Container>
                 <h1>{"Prepare to bid on item:"}</h1>
                 <ItemDisplay item={props.item.clone()} />
-                <p>{"You have: "}<MoneyDisplay money={props.my_account.balance} /></p>
+                <p>{"You have: "}<MoneyDisplay money={my_account.balance} /></p>
                 {maybe_sponsor_balance}
-                <SponsorshipModeSet my_account={props.my_account.clone()} send={props.send.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} />
+                <SponsorshipModeSet />
                 {sponsor_table}
             </Container>
         )
@@ -150,7 +152,7 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
         html!(
             <Container>
                 <div class="alert alert-info">{"Item: "}{&props.item.name}{"; initial price: "}<MoneyDisplay money={props.item.initial_price} /></div>
-                <SponsorshipEdit my_account={props.my_account.clone()} users={props.users.clone()} sponsorships={props.sponsorships.clone()} send={props.send.clone()} bid_state={None}/>
+                <SponsorshipEdit bid_state={None}/>
             </Container>
         )
     };

@@ -1,27 +1,28 @@
+use std::rc::Rc;
+
 use common::components::{MoneyDisplay, NumberInput};
-use communication::{admin_state::AdminState, AdminClientMessage, ItemState, Money, WithTimestamp};
+use communication::{AdminClientMessage, Money};
 use yew::prelude::*;
 
-use super::SendToServer;
+use crate::AppCtx;
 
-#[derive(Properties, PartialEq)]
-pub struct ChooseItemProps {
-    pub items: WithTimestamp<Vec<ItemState>>,
-    pub send: SendToServer,
-    pub admin_state: WithTimestamp<AdminState>,
-}
 
 #[function_component]
-pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
+pub fn ChooseItemToSell() -> Html {
+    let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
+    let send = &ctx.send;
+    let items = &ctx.items;
+    let admin_state = &ctx.admin_state;
+
     let mut item_rows: Vec<Html> = vec![];
-    for item in &*props.items {
+    for item in items {
         let action = match &item.state {
             communication::ItemStateValue::Sellable => {
-                let send = props.send.clone();
+                let send = send.clone();
                 let id = item.item.id;
 
                 // Do not allow selling until the holding account is at zero.
-                if props.admin_state.holding_account_balance == 0 {
+                if admin_state.holding_account_balance == 0 {
                     let start_selling_cb = Callback::from(move |e: MouseEvent| {
                         e.prevent_default();
                         send.emit(AdminClientMessage::PrepareAuctioning(id));
@@ -43,7 +44,7 @@ pub fn ChooseItemToSell(props: &ChooseItemProps) -> Html {
 
         let item_id = item.item.id;
         let commit_initial_price_cb = {
-            let send = props.send.clone();
+            let send = send.clone();
             Callback::from(move |s: String| {
                 send.emit(AdminClientMessage::ChangeItemInitialPrice {
                     id: item_id,

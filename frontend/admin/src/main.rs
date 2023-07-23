@@ -2,10 +2,16 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
+use std::rc::Rc;
+
+use admin_ui::SendToServer;
 use common::layout::{Container, VerticalStack};
 use common::screens::fullscreen_message::FullscreenMsg;
+use communication::admin_state::AdminState;
+use communication::auction::state::{AuctionState, Sponsorship};
 use communication::{
-    decode, encode, AdminClientMessage, AdminServerMessage, LoginRequest, WithTimestamp,
+    decode, encode, AdminClientMessage, AdminServerMessage, ItemState, LoginRequest,
+    UserAccountDataWithSecrets, WithTimestamp,
 };
 use gloo_storage::{SessionStorage, Storage};
 use log::info;
@@ -158,7 +164,20 @@ fn main_app() -> Html {
             // We need to have the auction info before continuing
             match (&*auction_state, &*admin_state, &*sponsorship_states) {
                 (Some(auction_state), Some(admin_state), Some(sponsorship_states)) => {
-                    html!(<AdminUserInterface auction_state={auction_state.clone()} admin_state={admin_state.clone()} sponsorships={sponsorship_states.clone()} send={send_cb} items={(*item_states).clone()} users={(*auction_members).clone()}/>)
+                    let ctx = AppCtx {
+                        auction_state: auction_state.data.clone(),
+                        admin_state: admin_state.data.clone(),
+                        sponsorships: sponsorship_states.data.clone(),
+                        send: send_cb,
+                        items: item_states.data.clone(),
+                        users: auction_members.data.clone(),
+                    };
+                    let ctx = Rc::new(ctx);
+                    html!(
+                        <ContextProvider<Rc<AppCtx>> context={ctx}>
+                            <AdminUserInterface />
+                        </ContextProvider<Rc<AppCtx>>>
+                    )
                 }
                 _ => {
                     html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)
@@ -169,6 +188,16 @@ fn main_app() -> Html {
             html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />)
         }
     }
+}
+
+#[derive(PartialEq, Debug)]
+pub struct AppCtx {
+    auction_state: AuctionState,
+    admin_state: AdminState,
+    sponsorships: Vec<Sponsorship>,
+    send: SendToServer,
+    items: Vec<ItemState>,
+    users: Vec<UserAccountDataWithSecrets>,
 }
 
 #[function_component(AppWrapper)]

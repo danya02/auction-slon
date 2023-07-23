@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use axum::extract::ws::{close_code, Message, WebSocket};
 
@@ -41,6 +41,16 @@ pub async fn handle_socket(
         }
         Some(user) => user,
     };
+
+    // Once we have a user, we'll lock the mutex,
+    // and give away a Weak reference to a value that we own;
+    // that way, the auction task will know when this thread dies.
+    let my_value = Arc::new(());
+    let my_value_weak = Arc::downgrade(&my_value);
+    {
+        let mut connection_active_handles = sync_handle.connection_active_handles.lock().await;
+        connection_active_handles.insert(user.id, my_value_weak);
+    }
 
     // Now, we will give the user the current info on who they are, other members of the auction, and the auction's state,
     // when this interval first ticks (which should be immediate).
