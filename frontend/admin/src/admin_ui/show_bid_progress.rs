@@ -26,7 +26,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
     let bidding_on = html! {
         <>
-            <h3>{"Bidding on this item:"}</h3>
+            <h3>{"Продаем:"}</h3>
             <ItemDisplay item={props.bid_state.item.clone()} />
         </>
     };
@@ -61,15 +61,15 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
 
             html! {
                 <>
-                <p>{"Current bidder:"}</p>
+                <p>{"Текущая ставка:"}</p>
                 <UserAccountCard account={current_bidder.clone()} />
-                <p>{"Current bid amount: "}<MoneyDisplay money={current_bid_amount} /></p>
-                <p>{"Minimum bid increment: "}<MoneyDisplay money={minimum_increment} /></p>
-                <p>{"Time remaining: "}{seconds_until_commit}</p>
+                <p>{"Значение ставки: "}<MoneyDisplay money={current_bid_amount} /></p>
+                <p>{"Инкремент ставки: "}<MoneyDisplay money={minimum_increment} /></p>
+                <p>{"Остается времени: "}{seconds_until_commit}</p>
                 <p>
-                    {"Max bid time: "}{format!("{:.2}", *max_millis_until_commit as f32 / 1000.0)}
-                    <button class="btn btn-danger" onclick={decrease_bet_time_cb}>{"Sub 1 second"}</button>
-                    <button class="btn btn-success" onclick={increase_bet_time_cb}>{"Add 5 seconds"}</button>
+                    {"Максимальное время: "}{format!("{:.2}", *max_millis_until_commit as f32 / 1000.0)}
+                    <button class="btn btn-danger" onclick={decrease_bet_time_cb}>{"-1с"}</button>
+                    <button class="btn btn-success" onclick={increase_bet_time_cb}>{"+5с"}</button>
                 </p>
                 </>
             }
@@ -92,7 +92,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                     };
 
                     // This is the HTML for the button
-                    html!(<button class="btn btn-danger" onclick={kick_press_cb}>{"Kick from arena"}</button>)
+                    html!(<button class="btn btn-danger" onclick={kick_press_cb}>{"Удалить из арены"}</button>)
                 })
             };
 
@@ -162,7 +162,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 } => {
                     let arena_closes = if let Some(s) = seconds_until_arena_closes {
                         html!(
-                            <p>{"Arena closes in: "}{s}</p>
+                            <p>{"Арена закрывается через: "}{s}</p>
                         )
                     } else {
                         let start_closing_arena_cb = {
@@ -175,33 +175,33 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                         html!(
                             <p>
                                 <button class="btn btn-warning" onclick={start_closing_arena_cb}>
-                                    {"Start closing arena"}
+                                    {"Начать закрывать арену"}
                                 </button>
                             </p>
                         )
                     };
                     html! {
                         <>
-                            <h1>{"Arena is now open"}</h1>
-                            <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                            <h1>{"Арена открыта"}</h1>
+                            <p>{"Текущая цена: "}<MoneyDisplay money={current_price} /></p>
                             {arena_closes}
                             <p>
-                                {"Current price increase rate: +"}
+                                {"Текущая скорость увеличения: +"}
                                 <MoneyDisplay money={current_price_increase_per_100_seconds}/>
-                                {"/100 seconds"}
+                                {"/100 секунд"}
                                 <button class="btn btn-danger" onclick={clock_rate_down_cb}>{"-"}</button>
                                 <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
                             </p>
 
-                            <p>{"Members can see the following info about the arena:"}</p>
+                            <p>{"Пользователи видят следующее об арене:"}</p>
                             <div class="btn-group">
-                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Full info"}</button>
-                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Only number of members"}</button>
-                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Nothing"}</button>
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Список"}</button>
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Только количество"}</button>
+                                <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Ничего"}</button>
                             </div>
 
                             <div class="overflow-scroll" style="height: 40vh; max-height: 40vh;">
-                                <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                                <h3>{currently_in_arena.len()}{" пользователей в арене"}</h3>
                                 <UserAccountTable accounts={currently_in_arena.clone()} users={users.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                             </div>
                         </>
@@ -214,26 +214,26 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                     arena_visibility_mode,
                 } => html! {
                     <>
-                        <h1>{"Arena is now closed"}</h1>
-                        <p>{"Current price: "}<MoneyDisplay money={current_price} /></p>
+                        <h1>{"Арена закрыта"}</h1>
+                        <p>{"Текущая цена: "}<MoneyDisplay money={current_price} /></p>
 
                         <p>
-                            {"Current price increase rate: +"}
+                            {"Текущая скорость увеличения: +"}
                             <MoneyDisplay money={current_price_increase_per_100_seconds}/>
-                            {"/100 seconds"}
+                            {"/100 секунд"}
                             <button class="btn btn-danger" onclick={clock_rate_down_cb}>{"-"}</button>
                             <button class="btn btn-success" onclick={clock_rate_up_cb}>{"+"}</button>
                         </p>
 
-                        <p>{"Members can see the following info about the arena:"}</p>
+                        <p>{"Пользователи видят следующее об арене:"}</p>
                         <div class="btn-group">
-                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Full info"}</button>
-                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Only number of members"}</button>
-                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Nothing"}</button>
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Full){"btn-primary"} else {"btn-outline-primary"})} onclick={set_full_cb}>{"Список"}</button>
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::OnlyNumber){"btn-primary"} else {"btn-outline-primary"})} onclick={set_only_number_cb}>{"Только количество"}</button>
+                            <button class={classes!("btn", if matches!(arena_visibility_mode, ArenaVisibilityMode::Nothing){"btn-primary"} else {"btn-outline-primary"})} onclick={set_nothing_cb}>{"Ничего"}</button>
                         </div>
 
                         <div class="overflow-scroll" style="height: 20vh; max-height: 20vh;">
-                            <h3>{currently_in_arena.len()}{" members in arena"}</h3>
+                            <h3>{currently_in_arena.len()}{" участников в арене"}</h3>
                             <UserAccountTable accounts={currently_in_arena.clone()} users={users.iter().map(|u| u.into()).collect::<Vec<_>>()} sponsorships={sponsorships.clone()} action_col_cb={get_kick_btn_cb} />
                         </div>
                     </>
@@ -260,7 +260,7 @@ pub fn ShowBidProgress(props: &ShowBidProgressProps) -> Html {
                 </div>
             </div>
             <div class="d-grid gap-2">
-                <button onclick={return_cb} class="btn btn-danger">{"Return to item select"}</button>
+                <button onclick={return_cb} class="btn btn-danger">{"Вернуться к выбору предмета"}</button>
             </div>
 
         </Container>

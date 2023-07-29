@@ -186,14 +186,15 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             ..
         } => {
             let hold = if let Some(s) = seconds_until_arena_closes {
-                format!("Hold button to bet: {s:.1} left")
+                format!("Держи кнопку для ставки: {s:.1} осталось")
             } else {
-                String::from("Hold button to bet")
+                String::from("Держи кнопку для ставки")
             };
             html!(
                 <>
                     <h1>{hold}</h1>
-                    <h2>{"Initial price: "}<MoneyDisplay money={current_price} />{"/ You can use:"}<MoneyDisplay money={*available_balance}/></h2>
+                    <h2>{"Начальная цена: "}<MoneyDisplay money={current_price} /></h2>
+                    <h2>{"Доступно тебе:"}<MoneyDisplay money={*available_balance}/></h2>
                 </>
             )
         }
@@ -201,15 +202,16 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
             if locked_out_of_arena {
                 html!(
                     <>
-                        <h1>{"Current price: "}<MoneyDisplay money={current_price} /></h1>
-                        <h2>{"You are no longer taking part"}</h2>
+                        <h1>{"Цена: "}<MoneyDisplay money={current_price} /></h1>
+                        <h2>{"Ты больше не участвуешь"}</h2>
                     </>
                 )
             } else {
                 html!(
                     <>
-                        <h1>{"Current price: "}<MoneyDisplay money={current_price} /></h1>
-                        <h2>{"Hold to keep betting, release to abandon"}{"/ You can use:"}<MoneyDisplay money={*available_balance}/></h2>
+                        <h1>{"Цена: "}<MoneyDisplay money={current_price} /></h1>
+                        <h2>{"Держи кнопку для ставки, отпусти чтобы выйти"}</h2>
+                        <h2>{"Доступно тебе:"}<MoneyDisplay money={*available_balance}/></h2>
                     </>
                 )
             }
@@ -219,18 +221,18 @@ pub fn JapaneseAuctionBidInput(props: &JapaneseAuctionBidInputProps) -> Html {
     let arena_info = match arena_mode {
         communication::auction::state::ArenaVisibilityMode::Full => html!(
             <>
-                <h3>{currently_in_arena.len()}{" members taking part"}</h3>
+                <h3>{currently_in_arena.len()}{" пользователей участвуют"}</h3>
                 <UserAccountTable accounts={currently_in_arena.to_vec()} users={users.clone()} sponsorships={sponsorships.clone()}/>
             </>
         ),
         communication::auction::state::ArenaVisibilityMode::OnlyNumber => html!(
-            <h3>{currently_in_arena.len()}{" members taking part"}</h3>
+            <h3>{currently_in_arena.len()}{" пользователей участвуют"}</h3>
         ),
         communication::auction::state::ArenaVisibilityMode::Nothing => {
             if me_in_arena {
-                html!(<h3>{"You are taking part"}</h3>)
+                html!(<h3>{"Ты участвуешь"}</h3>)
             } else {
-                html!(<h3>{"You are not taking part"}</h3>)
+                html!(<h3>{"Ты не участвуешь"}</h3>)
             }
         }
     };

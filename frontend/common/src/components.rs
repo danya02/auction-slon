@@ -44,8 +44,8 @@ pub fn UserAccountTable(props: &UserAccountTableProps) -> Html {
 
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Available balance"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Доступный баланс"}</th>
                     {if props.action_col_cb.is_some() {html!(<th scope="col">{"Actions"}</th>)} else {html!()}}
                 </tr>
             </thead>
@@ -98,7 +98,7 @@ pub fn ItemDisplay(props: &ItemDisplayProps) -> Html {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title">{&item.name}</h5>
-                <h6 class="card-subtitle">{"Initial price: "}<MoneyDisplay money={item.initial_price} /></h6>
+                <h6 class="card-subtitle">{"Начальная цена: "}<MoneyDisplay money={item.initial_price} /></h6>
             </div>
         </div>
     )
@@ -199,10 +199,10 @@ pub fn AuctionReportView(props: &AuctionReportViewProps) -> Html {
                 <table class="table table-dark">
                     <thead>
                         <tr>
-                            <th scope="col">{"User name"}</th>
-                            <th scope="col">{"Final balance"}</th>
-                            <th scope="col">{"Purchased item"}</th>
-                            <th scope="col">{"Purchased price"}</th>
+                            <th scope="col">{"Имя"}</th>
+                            <th scope="col">{"Финальный баланс"}</th>
+                            <th scope="col">{"Купленный товар"}</th>
+                            <th scope="col">{"Цена покупки"}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -247,10 +247,10 @@ pub fn AuctionReportView(props: &AuctionReportViewProps) -> Html {
                 <table class="table table-dark">
                     <thead>
                         <tr>
-                            <th scope="col">{"Item name"}</th>
-                            <th scope="col">{"Initial price"}</th>
-                            <th scope="col">{"Purchased by user"}</th>
-                            <th scope="col">{"Purchased price"}</th>
+                            <th scope="col">{"Название товара"}</th>
+                            <th scope="col">{"Начальная цена"}</th>
+                            <th scope="col">{"Купил пользователь"}</th>
+                            <th scope="col">{"Цена покупки"}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -265,10 +265,10 @@ pub fn AuctionReportView(props: &AuctionReportViewProps) -> Html {
         <div>
             <ul class="nav nav-tabs">
                 <li class="nav-item">
-                    <a onclick={set_user_cb} class={classes!("nav-link", matches!(current_tab, UserFirst).then_some("active"))}>{"By user"}</a>
+                    <a onclick={set_user_cb} class={classes!("nav-link", matches!(current_tab, UserFirst).then_some("active"))}>{"По пользователю"}</a>
                 </li>
                 <li class="nav-item">
-                    <a onclick={set_item_cb} class={classes!("nav-link", matches!(current_tab, ItemFirst).then_some("active"))}>{"By item"}</a>
+                    <a onclick={set_item_cb} class={classes!("nav-link", matches!(current_tab, ItemFirst).then_some("active"))}>{"По предмету"}</a>
                 </li>
             </ul>
 

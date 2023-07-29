@@ -64,8 +64,8 @@ pub fn HoldingAccountTransferTable() -> Html {
         <table class="table table-dark">
             <thead>
                 <tr>
-                    <th scope="col">{"User name"}</th>
-                    <th scope="col">{"Balance"}</th>
+                    <th scope="col">{"Имя пользователя"}</th>
+                    <th scope="col">{"Баланс"}</th>
                 </tr>
             </thead>
             <tbody>

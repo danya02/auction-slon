@@ -7,7 +7,6 @@ use yew::prelude::*;
 
 use crate::AppCtx;
 
-
 #[derive(Properties, PartialEq)]
 pub struct ItemSoldDisplayProps {
     pub item: AuctionItem,
@@ -45,11 +44,11 @@ pub fn ItemSoldDisplay(props: &ItemSoldDisplayProps) -> Html {
                     </div>
                 </div>
 
-                <h2>{"Confirmation code:"}</h2>
+                <h2>{"Код подтверждения:"}</h2>
                 <h3 style="font-size: calc(100vw/0.625/6);">{props.confirmation_code.clone()}</h3>
                 // Font calc: https://stackoverflow.com/a/31322756/5936187
                 <div class="d-grid gap-2">
-                    <button onclick={return_cb} class="btn btn-success">{"Return to item select"}</button>
+                    <button onclick={return_cb} class="btn btn-success">{"Вернуться к выбору предмета"}</button>
                 </div>
             </VerticalStack>
         </Container>

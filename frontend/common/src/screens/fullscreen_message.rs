@@ -25,7 +25,7 @@ pub fn FullscreenMsg(props: &FullscreenMsgProps) -> Html {
             location.reload().unwrap();
         });
         html!(
-            <button class="btn btn-warning" onclick={reload}>{"Reload"}</button>
+            <button class="btn btn-warning" onclick={reload}>{"Перезагрузить"}</button>
         )
     } else {
         html!()

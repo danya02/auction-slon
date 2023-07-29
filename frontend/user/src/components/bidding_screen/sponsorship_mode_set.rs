@@ -41,9 +41,9 @@ pub fn SponsorshipModeSet() -> Html {
             })
         };
         html!(<p>
-                {"Sponsorship code: "}<code>{code}</code>
-                <button class="btn btn-primary" onclick={refresh_code_cb}>{"Refresh"}</button>
-                <button class="btn btn-outline-danger" onclick={close_sponsors_cb}>{"Disable new sponsors"}</button>
+                {"Код для спонсоров: "}<code>{code}</code>
+                <button class="btn btn-primary" onclick={refresh_code_cb}>{"Обновить"}</button>
+                <button class="btn btn-outline-danger" onclick={close_sponsors_cb}>{"Запретить новых спонсоров"}</button>
             </p>)
     } else {
         let open_sponsors_cb = {
@@ -55,13 +55,13 @@ pub fn SponsorshipModeSet() -> Html {
         };
 
         html!(<p>
-                {"New sponsors disabled"}
-                <button class="btn btn-primary" onclick={open_sponsors_cb}>{"Allow new sponsors"}</button>
+                {"Новые спонсоры выключены"}
+                <button class="btn btn-primary" onclick={open_sponsors_cb}>{"Разрешить новых спонсоров"}</button>
             </p>)
     };
 
     let sponsors_data = html!(
-        <p>{"Current sponsors: "}{my_sponsors_count}{"; total balance available for bids: "}<MoneyDisplay money={available_balance}/></p>
+        <p>{"Текущих спонсоров: "}{my_sponsors_count}{"; доступный баланс для ставок: "}<MoneyDisplay money={available_balance}/></p>
     );
 
     html!(

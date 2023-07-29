@@ -28,8 +28,8 @@ pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Money contributed"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Заплатил"}</th>
                 </tr>
             </thead>
             <tbody>
@@ -50,9 +50,9 @@ pub fn SoldToYou(props: &ItemSoldToYouProps) -> Html {
     html! {
         <Container class="text-bg-success">
             <VerticalStack>
-                <h1>{"Sold: "}{&props.item.name}</h1>
-                <p>{"Paid: "}<MoneyDisplay money={props.sold_for} /></p>
-                <p>{"Show this code to the auctioneer:"}</p>
+                <h1>{"Продано: "}{&props.item.name}</h1>
+                <p>{"Оплачено: "}<MoneyDisplay money={props.sold_for} /></p>
+                <p>{"Покажи этот код аукционеру:"}</p>
                 <h2 style="font-size: calc(100vw/0.625/4);">{&props.confirmation_code}</h2>
                 // Size calc: https://stackoverflow.com/a/31322756/5936187
                 {contributor_table}
@@ -80,8 +80,8 @@ pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Money contributed"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Заплатил"}</th>
                 </tr>
             </thead>
             <tbody>
@@ -103,10 +103,10 @@ pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
         html! {
             <Container class="text-bg-warning">
                 <VerticalStack>
-                    <h1>{"You helped buy this"}</h1>
+                    <h1>{"Вы помогли купить это"}</h1>
                     <ItemDisplay item={props.item.clone()} />
                     <div class="alert alert-info">
-                        {"It was sold for "}<MoneyDisplay money={props.sold_for} />
+                        {"Товар продан за "}<MoneyDisplay money={props.sold_for} />
                     </div>
                     <UserAccountCard account={props.sold_to.clone()} />
                     {contributor_table}
@@ -117,10 +117,10 @@ pub fn SoldToSomeoneElse(props: &ItemSoldToSomeoneElseProps) -> Html {
         html! {
             <Container class="text-bg-danger">
                 <VerticalStack>
-                    <h1>{"You did not buy this"}</h1>
+                    <h1>{"Вы не купили это"}</h1>
                     <ItemDisplay item={props.item.clone()} />
                     <div class="alert alert-info">
-                        {"It was sold for "}<MoneyDisplay money={props.sold_for} />
+                        {"Товар продан за за "}<MoneyDisplay money={props.sold_for} />
                     </div>
                     <UserAccountCard account={props.sold_to.clone()} />
                     {contributor_table}

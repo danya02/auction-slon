@@ -13,11 +13,11 @@ pub fn SetupAuction() -> Html {
     html! {
         <div class="row">
             <div class="col-6">
-                <h2>{"Edit users"}</h2>
+                <h2>{"Пользователи"}</h2>
                 <UserSetup />
             </div>
             <div class="col-6">
-                <h2>{"Edit items"}</h2>
+                <h2>{"Предметы"}</h2>
                 <ItemSetup />
             </div>
         </div>
@@ -76,7 +76,7 @@ fn UserSetup() -> Html {
                 </td>
                 <td class="hover-to-reveal-box"><code>{user.login_key.clone()}</code></td>
                 <td>
-                    <button class="btn btn-outline-danger" onclick={delete_user_cb}>{"Delete"}</button>
+                    <button class="btn btn-outline-danger" onclick={delete_user_cb}>{"Удалить"}</button>
                 </td>
             </tr>
         };
@@ -108,10 +108,10 @@ fn UserSetup() -> Html {
     rows.push(html!(
         <tr>
             <td colspan="3">
-                <input class="form-control" type="text" value={(*new_user_name).clone()} oninput={new_user_name_edit_cb} placeholder="New user name..." />
+                <input class="form-control" type="text" value={(*new_user_name).clone()} oninput={new_user_name_edit_cb} placeholder="Новое имя пользователя..." />
             </td>
             <td>
-                <button class="btn btn-success" onclick={add_user_cb}>{"Add user"}</button>
+                <button class="btn btn-success" onclick={add_user_cb}>{"Добавить пользователя"}</button>
             </td>
         </tr>
     ));
@@ -120,10 +120,10 @@ fn UserSetup() -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Balance"}</th>
-                    <th scope="col">{"Login key"}</th>
-                    <th scope="col">{"Action"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Баланс"}</th>
+                    <th scope="col">{"Код логина"}</th>
+                    <th scope="col">{"Действия"}</th>
                 </tr>
             </thead>
             <tbody>
@@ -144,7 +144,7 @@ fn ItemSetup() -> Html {
         let item_id = item.item.id;
 
         let item_state_component = match &item.state {
-            communication::ItemStateValue::Sellable => html!(<span>{"Sellable"}</span>),
+            communication::ItemStateValue::Sellable => html!(<span>{"Продается"}</span>),
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => {
                 let reset_sale_status_cb = {
                     let send = send.clone();
@@ -155,8 +155,8 @@ fn ItemSetup() -> Html {
                 };
                 html! {
                     <>
-                        <span>{"Already sold to "}{buyer.user_name.clone()}{" for "}<MoneyDisplay money={sale_price} /></span>
-                        <button class="btn btn-warning" onclick={reset_sale_status_cb}>{"Clear sale status"}</button>
+                        <span>{"Уже продано: "}{buyer.user_name.clone()}{" за "}<MoneyDisplay money={sale_price} /></span>
+                        <button class="btn btn-warning" onclick={reset_sale_status_cb}>{"Очистить статус"}</button>
                     </>
                 }
             }
@@ -202,7 +202,7 @@ fn ItemSetup() -> Html {
                     {item_state_component}
                 </td>
                 <td>
-                    <button class="btn btn-outline-danger" onclick={delete_item_cb}>{"Delete"}</button>
+                    <button class="btn btn-outline-danger" onclick={delete_item_cb}>{"Удалить"}</button>
                 </td>
             </tr>
         };
@@ -235,10 +235,10 @@ fn ItemSetup() -> Html {
     rows.push(html!(
         <tr>
             <td colspan="3">
-                <input class="form-control mb-2" type="text" value={(*new_item_name).clone()} oninput={new_item_name_edit_cb} placeholder="New item name..." />
+                <input class="form-control mb-2" type="text" value={(*new_item_name).clone()} oninput={new_item_name_edit_cb} placeholder="Имя предмета..." />
             </td>
             <td>
-                <button class="btn btn-success" onclick={add_item_cb}>{"Add item"}</button>
+                <button class="btn btn-success" onclick={add_item_cb}>{"Добавить предмет"}</button>
             </td>
         </tr>
     ));
@@ -247,10 +247,10 @@ fn ItemSetup() -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Initial price"}</th>
-                    <th scope="col">{"State"}</th>
-                    <th scope="col">{"Action"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Начальная цена"}</th>
+                    <th scope="col">{"Статус"}</th>
+                    <th scope="col">{"Действие"}</th>
                 </tr>
             </thead>
             <tbody>

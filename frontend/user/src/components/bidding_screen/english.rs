@@ -69,11 +69,11 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
     };
 
     let send_btn = if *selected_bid > *available_balance {
-        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Cannot afford!"}</button>)
+        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Не хватает денег!"}</button>)
     } else if *selected_bid <= props.current_bid {
-        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Too low!"}</button>)
+        html!(<button class="btn btn-lg btn-info-outline" disabled={true}>{"Слишком низкая ставка!"}</button>)
     } else {
-        html!(<button class="btn btn-lg btn-info" onclick={send_cb}>{"Send bid: "}<MoneyDisplay money={*selected_bid} /></button>)
+        html!(<button class="btn btn-lg btn-info" onclick={send_cb}>{"Отправить ставку: "}<MoneyDisplay money={*selected_bid} /></button>)
     };
     let current_val = *selected_bid;
 
@@ -133,7 +133,7 @@ pub fn EnglishAuctionBidInput(props: &EnglishAuctionBidInputProps) -> Html {
         (
             String::from("width: 100%;"),
             String::from("width: 0%;"),
-            String::from("No bid yet..."),
+            String::from("Пока нет ставки..."),
         )
     };
 

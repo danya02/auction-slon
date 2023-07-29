@@ -6,7 +6,6 @@ use yew::prelude::*;
 
 use crate::AppCtx;
 
-
 #[function_component]
 pub fn ChooseItemToSell() -> Html {
     let ctx: Rc<AppCtx> = use_context().expect("no ctx found");
@@ -29,16 +28,16 @@ pub fn ChooseItemToSell() -> Html {
                     });
 
                     html! {
-                        <a href="#" class="btn btn-primary" onclick={start_selling_cb}>{"Sell this"}</a>
+                        <a href="#" class="btn btn-primary" onclick={start_selling_cb}>{"Продать"}</a>
                     }
                 } else {
                     html! {
-                        <span class="btn btn-outline-danger disabled">{"Spend holding account first"}</span>
+                        <span class="btn btn-outline-danger disabled">{"Используй временный баланс"}</span>
                     }
                 }
             }
             communication::ItemStateValue::AlreadySold { buyer, sale_price } => html! {
-                <a href="#" class="btn btn-secondary disabled">{"Sold to "}{&buyer.user_name}{" for "}<MoneyDisplay money={sale_price} /></a>
+                <a href="#" class="btn btn-secondary disabled">{"Продано: "}{&buyer.user_name}{", цена: "}<MoneyDisplay money={sale_price} /></a>
             },
         };
 
@@ -68,9 +67,9 @@ pub fn ChooseItemToSell() -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Initial price"}</th>
-                    <th>{"Action"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Начальная цена"}</th>
+                    <th>{"Действие"}</th>
                 </tr>
             </thead>
             <tbody>

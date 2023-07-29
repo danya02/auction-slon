@@ -58,12 +58,12 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
             <ul class="nav nav-tabs">
                 <li class="nav-item">
                     <a href="#" onclick={set_bidding_cb} class={classes!("nav-link", (mode == UserSaleMode::Bidding).then_some("active"))}>
-                        {"Making bets"}
+                        {"Делаю ставки"}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="#" onclick={set_sponsoring_cb} class={classes!("nav-link", (mode == UserSaleMode::Sponsoring).then_some("active"))}>
-                        {"Sponsoring others"}
+                        {"Спонсирую других"}
                     </a>
                 </li>
             </ul>
@@ -86,11 +86,11 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                         <Container class={classes!(bid_is_me.then_some("bg-success"))}>
                             <VerticalStack>
                                 <h1>
-                                    {"Bidding on: "}{&item.name}
+                                    {"Делаем ставки: "}{&item.name}
                                 </h1>
                                 <SponsorshipModeSet />
                                 <p>
-                                    {"Current top bid: "}<MoneyDisplay money={current_bid_amount} />
+                                    {"Наибольшая ставка: "}<MoneyDisplay money={current_bid_amount} />
                                 </p>
                                 <UserAccountCard account={current_bidder.clone()} />
                                 <EnglishAuctionBidInput item_id={item.id} current_bid={current_bid_amount} increment={minimum_increment} seconds_left={seconds_until_commit} {max_millis_until_commit} />
@@ -101,10 +101,10 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                 html!(
                     <>
                         <div class="alert alert-info">
-                            {"Item for sale: "}{&item.name}{"; "}
-                            {"Current top bid: "}
+                            {"Продается: "}{&item.name}{"; "}
+                            {"текущая ставка: "}
                             <MoneyDisplay money={current_bid_amount} />
-                            {" by "}
+                            {" от "}
                             {&current_bidder.user_name}
                         </div>
                         <SponsorshipEdit bid_state={props.bid_state.clone()}/>
@@ -124,7 +124,7 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                     <Container>
                         <VerticalStack>
                             <h1>
-                                {"Bidding on: "}{&item.name}
+                                {"Делаем ставки: "}{&item.name}
                             </h1>
                             <SponsorshipModeSet  />
                             <JapaneseAuctionBidInput item_id={item.id} state={state.clone()} />
@@ -135,7 +135,7 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                 html!(
                     <Container>
                         <div class="alert alert-info">
-                            {"Item for sale: "}{&item.name}{";"}
+                            {"Продается: "}{&item.name}{";"}
                             {
                                 match state {
                                     JapaneseAuctionBidState::EnterArena {
@@ -145,9 +145,9 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                                     } => {
                                         html!(
                                             <>
-                                            {"Starting price:"}
+                                            {"начальная цена: "}
                                             <MoneyDisplay money={current_price} />
-                                            {"; bids placed: "}{currently_in_arena.len()}
+                                            {"; ставок: "}{currently_in_arena.len()}
                                             </>
                                         )
                                     },
@@ -158,9 +158,9 @@ pub fn BiddingScreen(props: &BiddingScreenProps) -> Html {
                                     } => {
                                         html!(
                                             <>
-                                            {"Current price:"}
+                                            {"текущая цена: "}
                                             <MoneyDisplay money={current_price} />
-                                            {"; remaining bids: "}{currently_in_arena.len()}
+                                            {"; остается ставок: "}{currently_in_arena.len()}
                                             </>
                                         )
                                     },

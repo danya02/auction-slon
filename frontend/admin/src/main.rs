@@ -154,7 +154,7 @@ fn main_app() -> Html {
 
                 SessionStorage::delete("admin_login_key");
 
-                return html!(<FullscreenMsg message={format!("WebSocket closed with: {code} {reason}")} show_reload_button={true} />);
+                return html!(<FullscreenMsg message={format!("WebSocket закрыт с: {code} {reason}")} show_reload_button={true} />);
             }
         }
     };
@@ -180,12 +180,12 @@ fn main_app() -> Html {
                     )
                 }
                 _ => {
-                    html!(<FullscreenMsg message="Waiting for server to send initial info..." show_reload_button={true} />)
+                    html!(<FullscreenMsg message="Ждем пока сервер отправит начальную информацию..." show_reload_button={true} />)
                 }
             }
         }
         _ => {
-            html!(<FullscreenMsg message={format!("WebSocket connection is not ready yet (state is {:?})", *ws.ready_state)} show_reload_button={true} />)
+            html!(<FullscreenMsg message={format!("Соединение WebSocket еще не готово (состояние {:?})", *ws.ready_state)} show_reload_button={true} />)
         }
     }
 }
@@ -237,10 +237,10 @@ fn app_wrapper() -> Html {
             // Show the login key entry box.
             html! {
                 <Container><VerticalStack><div>
-                    <h3>{"Please input admin login code"}</h3>
+                    <h3>{"Введи код логина администратора"}</h3>
                     <form class="input-group" onsubmit={pending_login_key_submit}>
                         <input type="text" class="form-control" oninput={pending_login_key_input}/>
-                        <input type="submit" class="btn btn-outline-success" value="Login" />
+                        <input type="submit" class="btn btn-outline-success" value="Войти" />
                     </form>
 
                 </div></VerticalStack></Container>

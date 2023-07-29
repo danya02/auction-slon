@@ -52,12 +52,12 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
             <ul class="nav nav-tabs">
                 <li class="nav-item">
                     <a href="#" onclick={set_bidding_cb} class={classes!("nav-link", (mode == UserSaleMode::Bidding).then_some("active"))}>
-                        {"Making bets"}
+                        {"Делаю ставки"}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="#" onclick={set_sponsoring_cb} class={classes!("nav-link", (mode == UserSaleMode::Sponsoring).then_some("active"))}>
-                        {"Sponsoring others"}
+                        {"Спонсирую других"}
                     </a>
                 </li>
             </ul>
@@ -66,21 +66,18 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
 
     let i_am_bidding = my_account.sale_mode == UserSaleMode::Bidding;
     let screen = if i_am_bidding {
-        let maybe_sponsor_balance = match Sponsorship::resolve_available_balance(
-            my_account.id,
-            users,
-            sponsorships,
-        ) {
-            myself if myself == my_account.balance => {
-                // If nobody is sponsoring me, do not show any balance here
-                html!()
-            }
-            other => {
-                html!(
-                    <p>{"Available balance (including sponsors): "}<MoneyDisplay money={other} /></p>
-                )
-            }
-        };
+        let maybe_sponsor_balance =
+            match Sponsorship::resolve_available_balance(my_account.id, users, sponsorships) {
+                myself if myself == my_account.balance => {
+                    // If nobody is sponsoring me, do not show any balance here
+                    html!()
+                }
+                other => {
+                    html!(
+                        <p>{"Доступный баланс (со спонсорами): "}<MoneyDisplay money={other} /></p>
+                    )
+                }
+            };
 
         let sponsor_table = 'sponsortable: {
             let rows = sponsorships
@@ -126,9 +123,9 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
                 <table class="table">
                     <thead>
                         <tr>
-                            <th scope="col">{"Name"}</th>
-                            <th scope="col">{"Added balance"}</th>
-                            <th scope="col">{"Cancel"}</th>
+                            <th scope="col">{"Имя"}</th>
+                            <th scope="col">{"Баланс от них"}</th>
+                            <th scope="col">{"Отменить"}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -140,9 +137,9 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
 
         html!(
             <Container>
-                <h1>{"Prepare to bid on item:"}</h1>
+                <h1>{"Готовимся делать ставки:"}</h1>
                 <ItemDisplay item={props.item.clone()} />
-                <p>{"You have: "}<MoneyDisplay money={my_account.balance} /></p>
+                <p>{"У меня есть: "}<MoneyDisplay money={my_account.balance} /></p>
                 {maybe_sponsor_balance}
                 <SponsorshipModeSet />
                 {sponsor_table}
@@ -151,7 +148,7 @@ pub fn ShowItemBeforeBid(props: &ShowItemProps) -> Html {
     } else {
         html!(
             <Container>
-                <div class="alert alert-info">{"Item: "}{&props.item.name}{"; initial price: "}<MoneyDisplay money={props.item.initial_price} /></div>
+                <div class="alert alert-info">{"Товар: "}{&props.item.name}{"; начальная цена: "}<MoneyDisplay money={props.item.initial_price} /></div>
                 <SponsorshipEdit bid_state={None}/>
             </Container>
         )

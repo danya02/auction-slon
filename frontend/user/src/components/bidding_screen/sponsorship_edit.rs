@@ -102,9 +102,9 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
         <table class="table table-sm">
             <thead>
                 <tr>
-                    <th scope="col">{"Name"}</th>
-                    <th scope="col">{"Own balance"}</th>
-                    <th scope="col">{"Total balance with sponsors"}</th>
+                    <th scope="col">{"Имя"}</th>
+                    <th scope="col">{"Собственный баланс"}</th>
+                    <th scope="col">{"Общий баланс со спонсорами"}</th>
                 </tr>
             </thead>
             <tbody>
@@ -140,10 +140,10 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
             let sponsorship_id = sponsorship.id;
             let sponsorship_status = match sponsorship.status {
                 SponsorshipStatus::Rejected => {
-                    html!(<span class="text-bg-danger">{"Rejected by recepient"}</span>)
+                    html!(<span class="text-bg-danger">{"Отклонено получателем"}</span>)
                 }
                 SponsorshipStatus::Retracted => {
-                    html!(<span class="text-bg-warning">{"Retracted by you"}</span>)
+                    html!(<span class="text-bg-warning">{"Удалено вами"}</span>)
                 }
                 SponsorshipStatus::Active => {
                     let retract_cb = {
@@ -225,8 +225,8 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
             <table class="table">
                 <thead>
                     <tr>
-                        <th scope="col">{"Name"}</th>
-                        <th scope="col">{"Available balance"}</th>
+                        <th scope="col">{"Имя"}</th>
+                        <th scope="col">{"Доступный баланс"}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -263,7 +263,7 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
     };
 
     let sponsor_code_input = html!(
-        <input class="form-control" value={(*sponsor_code_value).clone()} type="tel" oninput={sponsor_code_oninput_cb} placeholder={"Sponsorship code..."}/>
+        <input class="form-control" value={(*sponsor_code_value).clone()} type="tel" oninput={sponsor_code_oninput_cb} placeholder={"Код получателя..."}/>
     );
 
     html!(
@@ -273,12 +273,12 @@ pub fn SponsorshipEdit(props: &SponsorshipEditProps) -> Html {
         <hr />
         <div class="card text-bg-success">
             <div class="card-body">
-                <h2>{"Add a sponsorship:"}</h2>
+                <h2>{"Стать спонсором:"}</h2>
                 {sponsor_code_input}
             </div>
         </div>
         <hr />
-        <h3>{"Users accepting sponsorships:"}</h3>
+        <h3>{"Пользователи, принимающие спонсоров:"}</h3>
         {could_sponsor}
         </>
     )
