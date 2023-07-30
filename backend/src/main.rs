@@ -35,11 +35,8 @@ impl<T, E> Ignorable for Result<T, E> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
-
     dotenvy::from_path(PathBuf::from("backend/.env"))?;
+    tracing_subscriber::fmt().init();
 
     let pool_url = env::var("DATABASE_URL")
         .expect("DATABASE_URL in .env file must be set to absolute path to SQLite database");

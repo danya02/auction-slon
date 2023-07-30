@@ -351,7 +351,7 @@ async fn auction_manager_inner(
                                 continue;
                             }
                         };
-                        let holding_balance = admin_state_tx.borrow().holding_account_balance;
+                        let holding_balance = query!("SELECT value FROM kv_data_int WHERE key='holding_balance'").fetch_one(&mut tx).await?.value as Money;
                         let new_user_balance;
                         let new_holding_balance;
                         if new_balance < user_balance {
